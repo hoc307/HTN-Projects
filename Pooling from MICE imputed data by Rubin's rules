@@ -1,0 +1,1203 @@
+data_list <- vector("list", length(imp_nums)) 
+# Loop through imputation numbers
+for(i in seq_along(imp_nums)){
+  data_list[[i]] <- complete(imp3f1c, imp_nums[i])
+}
+# Name each list element
+names(data_list) <- paste0("m3f", imp_nums)
+dataset_list <- c("m3f1", "m3f2", "m3f3","m3f4","m3f5","m3f6","m3f7","m3f8","m3f9","m3f10")
+#Model 1: procedure for ETIEmotional_SUM
+treatment<-c("ETIEmotional_SUM")
+mediators<-c("MSPSS_T")
+outcome<-c("fmd")
+covariates<-c("age_1+ marital + income +edu +employ + stimulant  +race_cat + Timepoint")
+# Function to fit models and save output
+fit_models <- function(dataset_list) {
+  # Loop over the dataset names
+  for (i in seq_along(dataset_list)) {
+    dataset_name <- dataset_list[i]
+    dataset <- get(dataset_name) # Retrieve the dataset by name
+    
+    # Fit the mediator model using lmer
+    mediator_model <- lmer(MSPSS_T ~ ETIEmotional_SUM + age_1 + marital + income + 
+                             edu + employ + stimulant + race_cat + Timepoint + (1 | PID), 
+                           data = dataset)
+    # Save the mediator model
+    assign(paste0("mediatorfit", i), mediator_model, envir = .GlobalEnv)
+    
+    # Fit the dependent variable model using glmer
+    dv_model <- glmer(fmd ~ MSPSS_T + ETIEmotional_SUM + age_1 + marital + income + 
+                        edu + employ + stimulant + race_cat + Timepoint + (1 | PID), 
+                      data = dataset, family = binomial)
+    # Save the dependent variable model
+    assign(paste0("dvfit", i), dv_model, envir = .GlobalEnv)
+  }
+}
+#call the function to fit glmer and lmer
+fit_models(dataset_list)
+# Pattern to match objects starting with 'mfit' followed by any number
+pattern <- "^mediatorfit[0-9]+$"
+# Get the names of all objects that match the pattern
+mfit_names <- ls(pattern = pattern)
+# Get the values of all matched objects into a list
+mfit_list <- mget(mfit_names)
+pattern <- "^dvfit[0-9]+$"
+# Get the names of all objects that match the pattern
+dvfit_names <- ls(pattern = pattern)
+# Get the values of all matched objects into a list
+dvfit_list <- mget(dvfit_names)
+# Call the function with the dataset list
+# Let's say you have your model objects ready like so:
+# Prepare a list to store the results of the mediate function
+#analysis with DV
+cm_list <- list()
+# Loop through the models
+for(i in seq_along(mfit_list)) {
+  cm_list[[i]] <- mediate(mfit_list[[i]], dvfit_list[[i]], 
+                          treat = 'ETIEmotional_SUM', 
+                          mediator = 'MSPSS_T', 
+                          sims = 300, 
+                          seed = 1234, 
+                          boot = FALSE)
+}
+med1<-cm_list[[1]]
+med2<-cm_list[[2]]
+med3<-cm_list[[3]]
+med4<-cm_list[[4]]
+med5<-cm_list[[5]]
+med6<-cm_list[[6]]
+med7<-cm_list[[7]]
+med8<-cm_list[[8]]
+med9<-cm_list[[9]]
+med10<-cm_list[[10]]
+# Assuming you have a list of mediation analysis results from multiple imputed datasets:
+# Assuming you have med1, med2, med3, med4, and med5 which are outputs of the mediate() function
+# Function to extract estimates and variances
+#Create the function to repeat and automate 
+#PartB: this procedure for 1. ade_list matched with "z.avg.group" for the function(x) to output W, 2.tde_list matched with "tau.coef.group" and 3.prop_list matched with n.avg.group
+#Part B1: Function to extract all results
+acme_list <- sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) x$d.avg)
+ade_list <- sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) x$z.avg)
+tde_list <- sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) x$tau.coef)
+prop_list <- sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) x$n.avg)
+#Part B:  
+# Within-imputation variance (W) 
+W <- mean(sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) var(x$d.avg.group))) #replace with "z.avg.group" for ade, "tau.coef.group" for tde, "n.avg.group" for proportion mediated 
+#PartB:# Between-imputation variance (B)
+# Pooled estimate
+pooled_acme <- mean(acme_list)
+B <- sum(sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) (pooled_acme-x$d.avg)^2))/(10-1)
+# Total variance (T)
+T <- W + B + (B/10) 
+# Degrees of freedom for the T distribution
+df <- (10 - 1) * (1 + W/(10 * B))^2
+# Confidence interval using the T distribution
+lower_ci <- pooled_acme - qt(0.975, df) * sqrt(T)
+upper_ci <- pooled_acme + qt(0.975, df) * sqrt(T)
+# Pooled ACME and its 95% CI
+pooled_acme_ci <- c(lower_ci, upper_ci)
+##for ade
+W <- mean(sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) var(x$z.avg.group))) #replace with "z.avg.group" for ade, "tau.coef.group" for tde, "n.avg.group" for proportion mediated 
+#PartB:# Between-imputation variance (B)
+# Pooled estimate
+pooled_ade <- mean(ade_list)
+B <- sum(sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) (pooled_ade-x$z.avg)^2))/(10-1)
+# Total variance (T)
+T <- W + B + (B/10) 
+# Degrees of freedom for the T distribution
+df <- (10 - 1) * (1 + W/(10 * B))^2
+# Confidence interval using the T distribution
+lower_ci <- pooled_ade - qt(0.975, df) * sqrt(T)
+upper_ci <- pooled_ade + qt(0.975, df) * sqrt(T)
+# Pooled ACME and its 95% CI
+pooled_ade_ci <- c(lower_ci, upper_ci)
+##for tde
+#Within-imputation variance(W)
+W <- mean(sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) var(x$tau.coef.group))) # "tau.coef.group" for tde, "n.avg.group" for proportion mediated 
+#PartB:# Between-imputation variance (B)
+# Pooled estimate
+pooled_tde <- mean(tde_list)
+B <- sum(sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) (pooled_tde-x$tau.coef)^2))/(10-1)
+# Total variance (T)
+T <- W + B + (B/10) 
+# Degrees of freedom for the T distribution
+df <- (10 - 1) * (1 + W/(10 * B))^2
+# Confidence interval using the T distribution
+lower_ci <- pooled_tde - qt(0.975, df) * sqrt(T)
+upper_ci <- pooled_tde + qt(0.975, df) * sqrt(T)
+# Pooled ACME and its 95% CI
+pooled_tde_ci <- c(lower_ci, upper_ci)
+##for proprotion mediated
+#within imputation variance
+W <- mean(sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) var(x$n.avg.group))) # "tau.coef.group" for tde, "n.avg.group" for proportion mediated 
+#PartB:# Between-imputation variance (B)
+# Pooled estimate
+pooled_prop <- mean(prop_list)
+B <- sum(sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) (pooled_prop-x$n.avg)^2))/(10-1)
+# Total variance (T)
+T <- W + B + (B/10) 
+# Degrees of freedom for the T distribution
+df <- (10 - 1) * (1 + W/(10 * B))^2
+# Confidence interval using the T distribution
+lower_ci <- pooled_prop - qt(0.975, df) * sqrt(T)
+upper_ci <- pooled_prop + qt(0.975, df) * sqrt(T)
+# Pooled ACME and its 95% CI
+pooled_prop_ci <- c(lower_ci, upper_ci)
+# Create a data frame with the pooled estimates and their confidence intervals
+pooled_results <- data.frame(
+  Estimate = c(pooled_acme, pooled_ade, pooled_tde, pooled_prop),
+  CI_Lower = c(pooled_acme_ci[1], pooled_ade_ci[1], pooled_tde_ci[1], pooled_prop_ci[1]),
+  CI_Upper = c(exp(pooled_acme_ci[2]), exp(pooled_ade_ci[2]), exp(pooled_tde_ci[2]), pooled_prop_ci[2])
+)
+
+# Add row names to identify each estimate
+rownames(pooled_results) <- c("ACME", "ADE", "TDE", "Proportion Mediated")
+
+# Print the results
+mmod_c_etiemo_fmd<-print(pooled_results)
+write.csv(mmod_c_etiemo_fmd, "/Users/dougcheung/Desktop/FSU Project/quality of life/mediationOutput/mmod_c_etiemo_fmd.csv")
+
+
+######################################
+# model 2: procedure for "EOD9ITEM_SUM"
+treatment<-c("EOD9ITEM_SUM")
+mediators<-c("MSPSS_T")
+outcome<-c("fmd")
+covariates<-c("age_1+ marital + income +edu +employ + stimulant  +race_cat + Timepoint")
+# Function to fit models and save output
+fit_models <- function(dataset_list) {
+  # Loop over the dataset names
+  for (i in seq_along(dataset_list)) {
+    dataset_name <- dataset_list[i]
+    dataset <- get(dataset_name)#Retieve the dataset by name
+    
+    # Fit the mediator model using lmer
+    mediator_model <- lmer(MSPSS_T ~ EOD9ITEM_SUM + age_1 + marital + income + 
+                             edu + employ + stimulant + race_cat + Timepoint + (1 | PID), 
+                           data = dataset)
+    # Save the mediator model
+    assign(paste0("mediatorfit", i), mediator_model, envir = .GlobalEnv)
+    
+    # Fit the dependent variable model using glmer
+    dv_model <- glmer(fmd ~ MSPSS_T + EOD9ITEM_SUM + age_1 + marital + income + 
+                        edu + employ + stimulant + race_cat + Timepoint + (1 | PID), 
+                      data = dataset, family = binomial)
+    # Save the dependent variable model
+    assign(paste0("dvfit", i), dv_model, envir = .GlobalEnv)
+  }
+}
+#call the function to fit glmer and lmer
+fit_models(dataset_list)
+# Pattern to match objects starting with 'mfit' followed by any number
+pattern <- "^mediatorfit[0-9]+$"
+# Get the names of all objects that match the pattern
+mfit_names <- ls(pattern = pattern)
+# Get the values of all matched objects into a list
+mfit_list <- mget(mfit_names)
+pattern <- "^dvfit[0-9]+$"
+# Get the names of all objects that match the pattern
+dvfit_names <- ls(pattern = pattern)
+# Get the values of all matched objects into a list
+dvfit_list <- mget(dvfit_names)
+# Call the function with the dataset list
+# Let's say you have your model objects ready like so:
+# Prepare a list to store the results of the mediate function
+#analysis with DV
+cm_list <- list()
+# Loop through the models
+for(i in seq_along(mfit_list)) {
+  cm_list[[i]] <- mediate(mfit_list[[i]], dvfit_list[[i]], 
+                          treat = 'EOD9ITEM_SUM', 
+                          mediator = 'MSPSS_T', 
+                          sims = 300, 
+                          seed = 1234, 
+                          boot = FALSE)
+}
+med1<-cm_list[[1]]
+med2<-cm_list[[2]]
+med3<-cm_list[[3]]
+med4<-cm_list[[4]]
+med5<-cm_list[[5]]
+med6<-cm_list[[6]]
+med7<-cm_list[[7]]
+med8<-cm_list[[8]]
+med9<-cm_list[[9]]
+med10<-cm_list[[10]]
+#PartB: this procedure for 1. ade_list matched with "z.avg.group" for the function(x) to output W, 2.tde_list matched with "tau.coef.group" and 3.prop_list matched with n.avg.group
+#Part B1: Function to extract all results
+acme_list <- sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) x$d.avg)
+ade_list <- sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) x$z.avg)
+tde_list <- sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) x$tau.coef)
+prop_list <- sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) x$n.avg)
+#Part B:  
+# Within-imputation variance (W) 
+W <- mean(sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) var(x$d.avg.group))) #replace with "z.avg.group" for ade, "tau.coef.group" for tde, "n.avg.group" for proportion mediated 
+#PartB:# Between-imputation variance (B)
+# Pooled estimate
+pooled_acme <- mean(acme_list)
+B <- sum(sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) (pooled_acme-x$d.avg)^2))/(10-1)
+# Total variance (T)
+T <- W + B + (B/10) 
+# Degrees of freedom for the T distribution
+df <- (10 - 1) * (1 + W/(10 * B))^2
+# Confidence interval using the T distribution
+lower_ci <- pooled_acme - qt(0.975, df) * sqrt(T)
+upper_ci <- pooled_acme + qt(0.975, df) * sqrt(T)
+# Pooled ACME and its 95% CI
+pooled_acme_ci <- c(lower_ci, upper_ci)
+##for ade
+W <- mean(sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) var(x$z.avg.group))) #replace with "z.avg.group" for ade, "tau.coef.group" for tde, "n.avg.group" for proportion mediated 
+#PartB:# Between-imputation variance (B)
+# Pooled estimate
+pooled_ade <- mean(ade_list)
+B <- sum(sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) (pooled_ade-x$z.avg)^2))/(10-1)
+# Total variance (T)
+T <- W + B + (B/10) 
+# Degrees of freedom for the T distribution
+df <- (10 - 1) * (1 + W/(10 * B))^2
+# Confidence interval using the T distribution
+lower_ci <- pooled_ade - qt(0.975, df) * sqrt(T)
+upper_ci <- pooled_ade + qt(0.975, df) * sqrt(T)
+# Pooled ACME and its 95% CI
+pooled_ade_ci <- c(lower_ci, upper_ci)
+##for tde
+#Within-imputation variance(W)
+W <- mean(sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) var(x$tau.coef.group))) # "tau.coef.group" for tde, "n.avg.group" for proportion mediated 
+#PartB:# Between-imputation variance (B)
+# Pooled estimate
+pooled_tde <- mean(tde_list)
+B <- sum(sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) (pooled_tde-x$tau.coef)^2))/(10-1)
+# Total variance (T)
+T <- W + B + (B/10) 
+# Degrees of freedom for the T distribution
+df <- (10 - 1) * (1 + W/(10 * B))^2
+# Confidence interval using the T distribution
+lower_ci <- pooled_tde - qt(0.975, df) * sqrt(T)
+upper_ci <- pooled_tde + qt(0.975, df) * sqrt(T)
+# Pooled ACME and its 95% CI
+pooled_tde_ci <- c(lower_ci, upper_ci)
+##for proprotion mediated
+#within imputation variance
+W <- mean(sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) var(x$n.avg.group))) # "tau.coef.group" for tde, "n.avg.group" for proportion mediated 
+#PartB:# Between-imputation variance (B)
+# Pooled estimate
+pooled_prop <- mean(prop_list)
+B <- sum(sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) (pooled_prop-x$n.avg)^2))/(10-1)
+# Total variance (T)
+T <- W + B + (B/10) 
+# Degrees of freedom for the T distribution
+df <- (10 - 1) * (1 + W/(10 * B))^2
+# Confidence interval using the T distribution
+lower_ci <- pooled_prop - qt(0.975, df) * sqrt(T)
+upper_ci <- pooled_prop + qt(0.975, df) * sqrt(T)
+# Pooled ACME and its 95% CI
+pooled_prop_ci <- c(lower_ci, upper_ci)
+# Create a data frame with the pooled estimates and their confidence intervals
+pooled_results <- data.frame(
+  Estimate = c(pooled_acme, pooled_ade, pooled_tde, pooled_prop),
+  CI_Lower = c(pooled_acme_ci[1], pooled_ade_ci[1], pooled_tde_ci[1], pooled_prop_ci[1]),
+  CI_Upper = c(exp(pooled_acme_ci[2]), exp(pooled_ade_ci[2]), exp(pooled_tde_ci[2]), pooled_prop_ci[2])
+)
+
+# Add row names to identify each estimate
+rownames(pooled_results) <- c("ACME", "ADE", "TDE", "Proportion Mediated")
+
+# Print the results
+mmod_c_eod_fmd<-print(pooled_results)
+write.csv(mmod_c_eod_fmd, "/Users/dougcheung/Desktop/FSU Project/quality of life/mediationOutput/mmod_c_eod_fmd.csv")
+
+###################################
+# model 3 : procedure for "PSS_T" on fmd
+treatment<-c("PSS_T") #change
+mediators<-c("MSPSS_T")
+outcome<-c("fmd")
+covariates<-c("age_1+ marital + income +edu +employ + stimulant  +race_cat + Timepoint")
+# Function to fit models and save output
+fit_models <- function(dataset_list) {
+  # Loop over the dataset names
+  for (i in seq_along(dataset_list)) {
+    dataset_name <- dataset_list[i]
+    dataset <- get(dataset_name)#retrieve dataset by name
+    
+    # Fit the mediator model using lmer
+    mediator_model <- lmer(MSPSS_T ~ PSS_T + age_1 + marital + income + #change
+                             edu + employ + stimulant + race_cat + Timepoint + (1 | PID), 
+                           data = dataset)
+    # Save the mediator model
+    assign(paste0("mediatorfit", i), mediator_model, envir = .GlobalEnv)
+    
+    # Fit the dependent variable model using glmer
+    dv_model <- glmer(fmd ~ MSPSS_T + PSS_T + age_1 + marital + income + #change
+                        edu + employ + stimulant + race_cat + Timepoint + (1 | PID), 
+                      data = dataset, family = binomial)
+    # Save the dependent variable model
+    assign(paste0("dvfit", i), dv_model, envir = .GlobalEnv)
+  }
+}
+#call the function to fit glmer and lmer
+fit_models(dataset_list)
+# Pattern to match objects starting with 'mfit' followed by any number
+pattern <- "^mediatorfit[0-9]+$"
+# Get the names of all objects that match the pattern
+mfit_names <- ls(pattern = pattern)
+# Get the values of all matched objects into a list
+mfit_list <- mget(mfit_names)
+pattern <- "^dvfit[0-9]+$"
+# Get the names of all objects that match the pattern
+dvfit_names <- ls(pattern = pattern)
+# Get the values of all matched objects into a list
+dvfit_list <- mget(dvfit_names)
+# Call the function with the dataset list
+# Let's say you have your model objects ready like so:
+# Prepare a list to store the results of the mediate function
+#analysis with DV
+cm_list <- list()
+# Loop through the models
+for(i in seq_along(mfit_list)) {
+  cm_list[[i]] <- mediate(mfit_list[[i]], dvfit_list[[i]], 
+                          treat = 'PSS_T',
+                          mediator = 'MSPSS_T', 
+                          sims = 300, 
+                          seed = 1234, 
+                          boot = FALSE)
+}
+med1<-cm_list[[1]]
+med2<-cm_list[[2]]
+med3<-cm_list[[3]]
+med4<-cm_list[[4]]
+med5<-cm_list[[5]]
+med6<-cm_list[[6]]
+med7<-cm_list[[7]]
+med8<-cm_list[[8]]
+med9<-cm_list[[9]]
+med10<-cm_list[[10]]
+#PartB: this procedure for 1. ade_list matched with "z.avg.group" for the function(x) to output W, 2.tde_list matched with "tau.coef.group" and 3.prop_list matched with n.avg.group
+#Part B1: Function to extract all results
+acme_list <- sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) x$d.avg)
+ade_list <- sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) x$z.avg)
+tde_list <- sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) x$tau.coef)
+prop_list <- sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) x$n.avg)
+#Part B:  
+# Within-imputation variance (W) 
+W <- mean(sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) var(x$d.avg.group))) #replace with "z.avg.group" for ade, "tau.coef.group" for tde, "n.avg.group" for proportion mediated 
+#PartB:# Between-imputation variance (B)
+# Pooled estimate
+pooled_acme <- mean(acme_list)
+B <- sum(sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) (pooled_acme-x$d.avg)^2))/(10-1)
+# Total variance (T)
+T <- W + B + (B/10) 
+# Degrees of freedom for the T distribution
+df <- (10 - 1) * (1 + W/(10 * B))^2
+# Confidence interval using the T distribution
+lower_ci <- pooled_acme - qt(0.975, df) * sqrt(T)
+upper_ci <- pooled_acme + qt(0.975, df) * sqrt(T)
+# Pooled ACME and its 95% CI
+pooled_acme_ci <- c(lower_ci, upper_ci)
+##for ade
+W <- mean(sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) var(x$z.avg.group))) #replace with "z.avg.group" for ade, "tau.coef.group" for tde, "n.avg.group" for proportion mediated 
+#PartB:# Between-imputation variance (B)
+# Pooled estimate
+pooled_ade <- mean(ade_list)
+B <- sum(sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) (pooled_ade-x$z.avg)^2))/(10-1)
+# Total variance (T)
+T <- W + B + (B/10) 
+# Degrees of freedom for the T distribution
+df <- (10 - 1) * (1 + W/(10 * B))^2
+# Confidence interval using the T distribution
+lower_ci <- pooled_ade - qt(0.975, df) * sqrt(T)
+upper_ci <- pooled_ade + qt(0.975, df) * sqrt(T)
+# Pooled ACME and its 95% CI
+pooled_ade_ci <- c(lower_ci, upper_ci)
+##for tde
+#Within-imputation variance(W)
+W <- mean(sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) var(x$tau.coef.group))) # "tau.coef.group" for tde, "n.avg.group" for proportion mediated 
+#PartB:# Between-imputation variance (B)
+# Pooled estimate
+pooled_tde <- mean(tde_list)
+B <- sum(sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) (pooled_tde-x$tau.coef)^2))/(10-1)
+# Total variance (T)
+T <- W + B + (B/10) 
+# Degrees of freedom for the T distribution
+df <- (10 - 1) * (1 + W/(10 * B))^2
+# Confidence interval using the T distribution
+lower_ci <- pooled_tde - qt(0.975, df) * sqrt(T)
+upper_ci <- pooled_tde + qt(0.975, df) * sqrt(T)
+# Pooled ACME and its 95% CI
+pooled_tde_ci <- c(lower_ci, upper_ci)
+##for proprotion mediated
+#within imputation variance
+W <- mean(sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) var(x$n.avg.group))) # "tau.coef.group" for tde, "n.avg.group" for proportion mediated 
+#PartB:# Between-imputation variance (B)
+# Pooled estimate
+pooled_prop <- mean(prop_list)
+B <- sum(sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) (pooled_prop-x$n.avg)^2))/(10-1)
+# Total variance (T)
+T <- W + B + (B/10) 
+# Degrees of freedom for the T distribution
+df <- (10 - 1) * (1 + W/(10 * B))^2
+# Confidence interval using the T distribution
+lower_ci <- pooled_prop - qt(0.975, df) * sqrt(T)
+upper_ci <- pooled_prop + qt(0.975, df) * sqrt(T)
+# Pooled ACME and its 95% CI
+pooled_prop_ci <- c(lower_ci, upper_ci)
+# Create a data frame with the pooled estimates and their confidence intervals
+pooled_results <- data.frame(
+  Estimate = c(pooled_acme, pooled_ade, pooled_tde, pooled_prop),
+  CI_Lower = c(pooled_acme_ci[1], pooled_ade_ci[1], pooled_tde_ci[1], pooled_prop_ci[1]),
+  CI_Upper = c(exp(pooled_acme_ci[2]), exp(pooled_ade_ci[2]), exp(pooled_tde_ci[2]), pooled_prop_ci[2])
+)
+
+# Add row names to identify each estimate
+rownames(pooled_results) <- c("ACME", "ADE", "TDE", "Proportion Mediated")
+
+# Print the results
+mmod_c_PSS_T_fmd<-print(pooled_results) #change
+write.csv(mmod_c_PSS_T_fmd, "/Users/dougcheung/Desktop/FSU Project/quality of life/mediationOutput/mmod_c_PSS_T_fmd.csv")
+
+#######################################
+
+# model 4 : procedure for "BRCS_T" on fmd
+treatment<-c("BRCS_T") #change
+mediators<-c("MSPSS_T")
+outcome<-c("fmd")
+covariates<-c("age_1+ marital + income +edu +employ + stimulant +race_cat + Timepoint")
+# Function to fit models and save output
+fit_models <- function(dataset_list) {
+  # Loop over the dataset names
+  for (i in seq_along(dataset_list)) {
+    dataset_name <- dataset_list[i]
+    dataset <- get(dataset_name)# Retrieve the dataset by name
+    
+    # Fit the mediator model using lmer
+    mediator_model <- lmer(MSPSS_T ~ BRCS_T + age_1 + marital + income +#change
+                             edu + employ + stimulant + race_cat + Timepoint + (1 | PID), 
+                           data = dataset)
+    # Save the mediator model
+    assign(paste0("mediatorfit", i), mediator_model, envir = .GlobalEnv)
+    
+    # Fit the dependent variable model using glmer
+    dv_model <- glmer(fmd ~ MSPSS_T + BRCS_T + age_1 + marital + income +#change
+                        edu + employ + stimulant + race_cat + Timepoint + (1 | PID), 
+                      data = dataset, family = binomial)
+    # Save the dependent variable model
+    assign(paste0("dvfit", i), dv_model, envir = .GlobalEnv)
+  }
+}
+#call the function to fit glmer and lmer
+fit_models(dataset_list)
+# Pattern to match objects starting with 'mfit' followed by any number
+pattern <- "^mediatorfit[0-9]+$"
+# Get the names of all objects that match the pattern
+mfit_names <- ls(pattern = pattern)
+# Get the values of all matched objects into a list
+mfit_list <- mget(mfit_names)
+pattern <- "^dvfit[0-9]+$"
+# Get the names of all objects that match the pattern
+dvfit_names <- ls(pattern = pattern)
+# Get the values of all matched objects into a list
+dvfit_list <- mget(dvfit_names)
+# Call the function with the dataset list
+# Let's say you have your model objects ready like so:
+# Prepare a list to store the results of the mediate function
+#analysis with DV
+cm_list <- list()
+# Loop through the models
+for(i in seq_along(mfit_list)) {
+  cm_list[[i]] <- mediate(mfit_list[[i]], dvfit_list[[i]], 
+                          treat = 'BRCS_T',
+                          mediator = 'MSPSS_T', 
+                          sims = 300, 
+                          seed = 1234, 
+                          boot = FALSE)
+}
+med1<-cm_list[[1]]
+med2<-cm_list[[2]]
+med3<-cm_list[[3]]
+med4<-cm_list[[4]]
+med5<-cm_list[[5]]
+med6<-cm_list[[6]]
+med7<-cm_list[[7]]
+med8<-cm_list[[8]]
+med9<-cm_list[[9]]
+med10<-cm_list[[10]]
+#PartB: this procedure for 1. ade_list matched with "z.avg.group" for the function(x) to output W, 2.tde_list matched with "tau.coef.group" and 3.prop_list matched with n.avg.group
+#Part B1: Function to extract all results
+acme_list <- sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) x$d.avg)
+ade_list <- sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) x$z.avg)
+tde_list <- sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) x$tau.coef)
+prop_list <- sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) x$n.avg)
+#Part B:  
+# Within-imputation variance (W) 
+W <- mean(sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) var(x$d.avg.group))) #replace with "z.avg.group" for ade, "tau.coef.group" for tde, "n.avg.group" for proportion mediated 
+#PartB:# Between-imputation variance (B)
+# Pooled estimate
+pooled_acme <- mean(acme_list)
+B <- sum(sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) (pooled_acme-x$d.avg)^2))/(10-1)
+# Total variance (T)
+T <- W + B + (B/10) 
+# Degrees of freedom for the T distribution
+df <- (10 - 1) * (1 + W/(10 * B))^2
+# Confidence interval using the T distribution
+lower_ci <- pooled_acme - qt(0.975, df) * sqrt(T)
+upper_ci <- pooled_acme + qt(0.975, df) * sqrt(T)
+# Pooled ACME and its 95% CI
+pooled_acme_ci <- c(lower_ci, upper_ci)
+##for ade
+W <- mean(sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) var(x$z.avg.group))) #replace with "z.avg.group" for ade, "tau.coef.group" for tde, "n.avg.group" for proportion mediated 
+#PartB:# Between-imputation variance (B)
+# Pooled estimate
+pooled_ade <- mean(ade_list)
+B <- sum(sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) (pooled_ade-x$z.avg)^2))/(10-1)
+# Total variance (T)
+T <- W + B + (B/10) 
+# Degrees of freedom for the T distribution
+df <- (10 - 1) * (1 + W/(10 * B))^2
+# Confidence interval using the T distribution
+lower_ci <- pooled_ade - qt(0.975, df) * sqrt(T)
+upper_ci <- pooled_ade + qt(0.975, df) * sqrt(T)
+# Pooled ACME and its 95% CI
+pooled_ade_ci <- c(lower_ci, upper_ci)
+##for tde
+#Within-imputation variance(W)
+W <- mean(sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) var(x$tau.coef.group))) # "tau.coef.group" for tde, "n.avg.group" for proportion mediated 
+#PartB:# Between-imputation variance (B)
+# Pooled estimate
+pooled_tde <- mean(tde_list)
+B <- sum(sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) (pooled_tde-x$tau.coef)^2))/(10-1)
+# Total variance (T)
+T <- W + B + (B/10) 
+# Degrees of freedom for the T distribution
+df <- (10 - 1) * (1 + W/(10 * B))^2
+# Confidence interval using the T distribution
+lower_ci <- pooled_tde - qt(0.975, df) * sqrt(T)
+upper_ci <- pooled_tde + qt(0.975, df) * sqrt(T)
+# Pooled ACME and its 95% CI
+pooled_tde_ci <- c(lower_ci, upper_ci)
+##for proprotion mediated
+#within imputation variance
+W <- mean(sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) var(x$n.avg.group))) # "tau.coef.group" for tde, "n.avg.group" for proportion mediated 
+#PartB:# Between-imputation variance (B)
+# Pooled estimate
+pooled_prop <- mean(prop_list)
+B <- sum(sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) (pooled_prop-x$n.avg)^2))/(10-1)
+# Total variance (T)
+T <- W + B + (B/10) 
+# Degrees of freedom for the T distribution
+df <- (10 - 1) * (1 + W/(10 * B))^2
+# Confidence interval using the T distribution
+lower_ci <- pooled_prop - qt(0.975, df) * sqrt(T)
+upper_ci <- pooled_prop + qt(0.975, df) * sqrt(T)
+# Pooled ACME and its 95% CI
+pooled_prop_ci <- c(lower_ci, upper_ci)
+# Create a data frame with the pooled estimates and their confidence intervals
+pooled_results <- data.frame(
+  Estimate = c(pooled_acme, pooled_ade, pooled_tde, pooled_prop),
+  CI_Lower = c(pooled_acme_ci[1], pooled_ade_ci[1], pooled_tde_ci[1], pooled_prop_ci[1]),
+  CI_Upper = c(exp(pooled_acme_ci[2]), exp(pooled_ade_ci[2]), exp(pooled_tde_ci[2]), pooled_prop_ci[2])
+)
+
+# Add row names to identify each estimate
+rownames(pooled_results) <- c("ACME", "ADE", "TDE", "Proportion Mediated")
+
+# Print the results
+mmod_c_BRCS_T_fmd<-print(pooled_results) #change
+write.csv(mmod_c_BRCS_T_fmd, "/Users/dougcheung/Desktop/FSU Project/quality of life/mediationOutput/mmod_c_BRCS_T_fmd.csv")
+##########################################
+##########################################
+##########################################
+##########################################
+##########################################
+# model 5: procedure for "CESDR_T" on fpd
+treatment<-c("CESDR_T") #change
+mediators<-c("MSPSS_T")
+outcome<-c("fpd")
+covariates<-c("age_1+ marital + income +edu +employ + stimulant +race_cat + Timepoint")
+# Function to fit models and save output
+fit_models <- function(dataset_list) {
+  # Loop over the dataset names
+  for (i in seq_along(dataset_list)) {
+    dataset_name <- dataset_list[i]
+    dataset <- get(dataset_name)#retrieve dataset by name
+    
+    # Fit the mediator model using lmer
+    mediator_model <- lmer(MSPSS_T ~ CESDR_T + age_1 + marital + income + #change
+                             edu + employ + stimulant + race_cat + Timepoint + (1 | PID), 
+                           data = dataset)
+    # Save the mediator model
+    assign(paste0("mediatorfit", i), mediator_model, envir = .GlobalEnv)
+    
+    # Fit the dependent variable model using glmer
+    dv_model <- glmer(fpd ~ MSPSS_T + CESDR_T + age_1 + marital + income +#change
+                        edu + employ + stimulant + race_cat + Timepoint + (1 | PID), 
+                      data = dataset, family = binomial)
+    # Save the dependent variable model
+    assign(paste0("dvfit", i), dv_model, envir = .GlobalEnv)
+  }
+}
+#call the function to fit glmer and lmer
+fit_models(dataset_list)
+# Pattern to match objects starting with 'mfit' followed by any number
+pattern <- "^mediatorfit[0-9]+$"
+# Get the names of all objects that match the pattern
+mfit_names <- ls(pattern = pattern)
+# Get the values of all matched objects into a list
+mfit_list <- mget(mfit_names)
+pattern <- "^dvfit[0-9]+$"
+# Get the names of all objects that match the pattern
+dvfit_names <- ls(pattern = pattern)
+# Get the values of all matched objects into a list
+dvfit_list <- mget(dvfit_names)
+# Call the function with the dataset list
+# Let's say you have your model objects ready like so:
+# Prepare a list to store the results of the mediate function
+#analysis with DV
+cm_list <- list()
+# Loop through the models
+for(i in seq_along(mfit_list)) {
+  cm_list[[i]] <- mediate(mfit_list[[i]], dvfit_list[[i]], 
+                          treat = 'CESDR_T',
+                          mediator = 'MSPSS_T', 
+                          sims = 300, 
+                          seed = 1234, 
+                          boot = FALSE)
+}
+med1<-cm_list[[1]]
+med2<-cm_list[[2]]
+med3<-cm_list[[3]]
+med4<-cm_list[[4]]
+med5<-cm_list[[5]]
+med6<-cm_list[[6]]
+med7<-cm_list[[7]]
+med8<-cm_list[[8]]
+med9<-cm_list[[9]]
+med10<-cm_list[[10]]
+#PartB: this procedure for 1. ade_list matched with "z.avg.group" for the function(x) to output W, 2.tde_list matched with "tau.coef.group" and 3.prop_list matched with n.avg.group
+#Part B1: Function to extract all results
+acme_list <- sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) x$d.avg)
+ade_list <- sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) x$z.avg)
+tde_list <- sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) x$tau.coef)
+prop_list <- sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) x$n.avg)
+#Part B:  
+# Within-imputation variance (W) 
+W <- mean(sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) var(x$d.avg.group))) #replace with "z.avg.group" for ade, "tau.coef.group" for tde, "n.avg.group" for proportion mediated 
+#PartB:# Between-imputation variance (B)
+# Pooled estimate
+pooled_acme <- mean(acme_list)
+B <- sum(sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) (pooled_acme-x$d.avg)^2))/(10-1)
+# Total variance (T)
+T <- W + B + (B/10) 
+# Degrees of freedom for the T distribution
+df <- (10 - 1) * (1 + W/(10 * B))^2
+# Confidence interval using the T distribution
+lower_ci <- pooled_acme - qt(0.975, df) * sqrt(T)
+upper_ci <- pooled_acme + qt(0.975, df) * sqrt(T)
+# Pooled ACME and its 95% CI
+pooled_acme_ci <- c(lower_ci, upper_ci)
+##for ade
+W <- mean(sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) var(x$z.avg.group))) #replace with "z.avg.group" for ade, "tau.coef.group" for tde, "n.avg.group" for proportion mediated 
+#PartB:# Between-imputation variance (B)
+# Pooled estimate
+pooled_ade <- mean(ade_list)
+B <- sum(sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) (pooled_ade-x$z.avg)^2))/(10-1)
+# Total variance (T)
+T <- W + B + (B/10) 
+# Degrees of freedom for the T distribution
+df <- (10 - 1) * (1 + W/(10 * B))^2
+# Confidence interval using the T distribution
+lower_ci <- pooled_ade - qt(0.975, df) * sqrt(T)
+upper_ci <- pooled_ade + qt(0.975, df) * sqrt(T)
+# Pooled ACME and its 95% CI
+pooled_ade_ci <- c(lower_ci, upper_ci)
+##for tde
+#Within-imputation variance(W)
+W <- mean(sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) var(x$tau.coef.group))) # "tau.coef.group" for tde, "n.avg.group" for proportion mediated 
+#PartB:# Between-imputation variance (B)
+# Pooled estimate
+pooled_tde <- mean(tde_list)
+B <- sum(sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) (pooled_tde-x$tau.coef)^2))/(10-1)
+# Total variance (T)
+T <- W + B + (B/10) 
+# Degrees of freedom for the T distribution
+df <- (10 - 1) * (1 + W/(10 * B))^2
+# Confidence interval using the T distribution
+lower_ci <- pooled_tde - qt(0.975, df) * sqrt(T)
+upper_ci <- pooled_tde + qt(0.975, df) * sqrt(T)
+# Pooled ACME and its 95% CI
+pooled_tde_ci <- c(lower_ci, upper_ci)
+##for proprotion mediated
+#within imputation variance
+W <- mean(sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) var(x$n.avg.group))) # "tau.coef.group" for tde, "n.avg.group" for proportion mediated 
+#PartB:# Between-imputation variance (B)
+# Pooled estimate
+pooled_prop <- mean(prop_list)
+B <- sum(sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) (pooled_prop-x$n.avg)^2))/(10-1)
+# Total variance (T)
+T <- W + B + (B/10) 
+# Degrees of freedom for the T distribution
+df <- (10 - 1) * (1 + W/(10 * B))^2
+# Confidence interval using the T distribution
+lower_ci <- pooled_prop - qt(0.975, df) * sqrt(T)
+upper_ci <- pooled_prop + qt(0.975, df) * sqrt(T)
+# Pooled ACME and its 95% CI
+pooled_prop_ci <- c(lower_ci, upper_ci)
+# Create a data frame with the pooled estimates and their confidence intervals
+pooled_results <- data.frame(
+  Estimate = c(pooled_acme, pooled_ade, pooled_tde, pooled_prop),
+  CI_Lower = c(pooled_acme_ci[1], pooled_ade_ci[1], pooled_tde_ci[1], pooled_prop_ci[1]),
+  CI_Upper = c(exp(pooled_acme_ci[2]), exp(pooled_ade_ci[2]), exp(pooled_tde_ci[2]), pooled_prop_ci[2])
+)
+
+# Add row names to identify each estimate
+rownames(pooled_results) <- c("ACME", "ADE", "TDE", "Proportion Mediated")
+
+# Print the results
+mmod_c_CESDR_T_fpd<-print(pooled_results) #change
+write.csv(mmod_c_CESDR_T_fpd, "/Users/dougcheung/Desktop/FSU Project/quality of life/mediationOutput/mmod_c_CESDR_T_fpd.csv")
+##########################################
+##########################################
+##########################################
+##########################################
+##########################################
+# model 6: procedure for "GAD7" on fpd
+treatment<-c("GAD7") #change
+mediators<-c("MSPSS_T")
+outcome<-c("fpd") #change
+covariates<-c("age_1+ marital + income +edu +employ + stimulant +race_cat + Timepoint")
+# Function to fit models and save output
+fit_models <- function(dataset_list) {
+  # Loop over the dataset names
+  for (i in seq_along(dataset_list)) {
+    dataset_name <- dataset_list[i]
+    dataset <- get(dataset_name)#retrieve dataset by name
+    
+    # Fit the mediator model using lmer
+    mediator_model <- lmer(MSPSS_T ~ GAD7 + age_1 + marital + income + #change
+                             edu + employ + stimulant + race_cat + Timepoint + (1 | PID), 
+                           data = dataset)
+    # Save the mediator model
+    assign(paste0("mediatorfit", i), mediator_model, envir = .GlobalEnv)
+    
+    # Fit the dependent variable model using glmer
+    dv_model <- glmer(fpd ~ MSPSS_T + GAD7 + age_1 + marital + income + #change
+                        edu + employ + stimulant + race_cat + Timepoint + (1 | PID), 
+                      data = dataset, family = binomial)
+    # Save the dependent variable model
+    assign(paste0("dvfit", i), dv_model, envir = .GlobalEnv)
+  }
+}
+#call the function to fit glmer and lmer
+fit_models(dataset_list)
+# Pattern to match objects starting with 'mfit' followed by any number
+pattern <- "^mediatorfit[0-9]+$"
+# Get the names of all objects that match the pattern
+mfit_names <- ls(pattern = pattern)
+# Get the values of all matched objects into a list
+mfit_list <- mget(mfit_names)
+pattern <- "^dvfit[0-9]+$"
+# Get the names of all objects that match the pattern
+dvfit_names <- ls(pattern = pattern)
+# Get the values of all matched objects into a list
+dvfit_list <- mget(dvfit_names)
+# Call the function with the dataset list
+# Let's say you have your model objects ready like so:
+# Prepare a list to store the results of the mediate function
+#analysis with DV
+cm_list <- list()
+# Loop through the models
+for(i in seq_along(mfit_list)) {
+  cm_list[[i]] <- mediate(mfit_list[[i]], dvfit_list[[i]], 
+                          treat = 'GAD7',
+                          mediator = 'MSPSS_T', 
+                          sims = 300, 
+                          seed = 1234, 
+                          boot = FALSE)
+}
+med1<-cm_list[[1]]
+med2<-cm_list[[2]]
+med3<-cm_list[[3]]
+med4<-cm_list[[4]]
+med5<-cm_list[[5]]
+med6<-cm_list[[6]]
+med7<-cm_list[[7]]
+med8<-cm_list[[8]]
+med9<-cm_list[[9]]
+med10<-cm_list[[10]]
+#PartB: this procedure for 1. ade_list matched with "z.avg.group" for the function(x) to output W, 2.tde_list matched with "tau.coef.group" and 3.prop_list matched with n.avg.group
+#Part B1: Function to extract all results
+acme_list <- sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) x$d.avg)
+ade_list <- sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) x$z.avg)
+tde_list <- sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) x$tau.coef)
+prop_list <- sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) x$n.avg)
+#Part B:  
+# Within-imputation variance (W) 
+W <- mean(sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) var(x$d.avg.group))) #replace with "z.avg.group" for ade, "tau.coef.group" for tde, "n.avg.group" for proportion mediated 
+#PartB:# Between-imputation variance (B)
+# Pooled estimate
+pooled_acme <- mean(acme_list)
+B <- sum(sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) (pooled_acme-x$d.avg)^2))/(10-1)
+# Total variance (T)
+T <- W + B + (B/10) 
+# Degrees of freedom for the T distribution
+df <- (10 - 1) * (1 + W/(10 * B))^2
+# Confidence interval using the T distribution
+lower_ci <- pooled_acme - qt(0.975, df) * sqrt(T)
+upper_ci <- pooled_acme + qt(0.975, df) * sqrt(T)
+# Pooled ACME and its 95% CI
+pooled_acme_ci <- c(lower_ci, upper_ci)
+##for ade
+W <- mean(sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) var(x$z.avg.group))) #replace with "z.avg.group" for ade, "tau.coef.group" for tde, "n.avg.group" for proportion mediated 
+#PartB:# Between-imputation variance (B)
+# Pooled estimate
+pooled_ade <- mean(ade_list)
+B <- sum(sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) (pooled_ade-x$z.avg)^2))/(10-1)
+# Total variance (T)
+T <- W + B + (B/10) 
+# Degrees of freedom for the T distribution
+df <- (10 - 1) * (1 + W/(10 * B))^2
+# Confidence interval using the T distribution
+lower_ci <- pooled_ade - qt(0.975, df) * sqrt(T)
+upper_ci <- pooled_ade + qt(0.975, df) * sqrt(T)
+# Pooled ACME and its 95% CI
+pooled_ade_ci <- c(lower_ci, upper_ci)
+##for tde
+#Within-imputation variance(W)
+W <- mean(sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) var(x$tau.coef.group))) # "tau.coef.group" for tde, "n.avg.group" for proportion mediated 
+#PartB:# Between-imputation variance (B)
+# Pooled estimate
+pooled_tde <- mean(tde_list)
+B <- sum(sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) (pooled_tde-x$tau.coef)^2))/(10-1)
+# Total variance (T)
+T <- W + B + (B/10) 
+# Degrees of freedom for the T distribution
+df <- (10 - 1) * (1 + W/(10 * B))^2
+# Confidence interval using the T distribution
+lower_ci <- pooled_tde - qt(0.975, df) * sqrt(T)
+upper_ci <- pooled_tde + qt(0.975, df) * sqrt(T)
+# Pooled ACME and its 95% CI
+pooled_tde_ci <- c(lower_ci, upper_ci)
+##for proprotion mediated
+#within imputation variance
+W <- mean(sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) var(x$n.avg.group))) # "tau.coef.group" for tde, "n.avg.group" for proportion mediated 
+#PartB:# Between-imputation variance (B)
+# Pooled estimate
+pooled_prop <- mean(prop_list)
+B <- sum(sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) (pooled_prop-x$n.avg)^2))/(10-1)
+# Total variance (T)
+T <- W + B + (B/10) 
+# Degrees of freedom for the T distribution
+df <- (10 - 1) * (1 + W/(10 * B))^2
+# Confidence interval using the T distribution
+lower_ci <- pooled_prop - qt(0.975, df) * sqrt(T)
+upper_ci <- pooled_prop + qt(0.975, df) * sqrt(T)
+# Pooled ACME and its 95% CI
+pooled_prop_ci <- c(lower_ci, upper_ci)
+# Create a data frame with the pooled estimates and their confidence intervals
+pooled_results <- data.frame(
+  Estimate = c(pooled_acme, pooled_ade, pooled_tde, pooled_prop),
+  CI_Lower = c(pooled_acme_ci[1], pooled_ade_ci[1], pooled_tde_ci[1], pooled_prop_ci[1]),
+  CI_Upper = c(exp(pooled_acme_ci[2]), exp(pooled_ade_ci[2]), exp(pooled_tde_ci[2]), pooled_prop_ci[2])
+)
+
+# Add row names to identify each estimate
+rownames(pooled_results) <- c("ACME", "ADE", "TDE", "Proportion Mediated")
+
+
+# Print the results
+mmod_c_GAD7_fpd<-print(pooled_results) #change
+write.csv(mmod_c_GAD7_fpd, "/Users/dougcheung/Desktop/FSU Project/quality of life/mediationOutput/mmod_c_GAD7_fpd.csv")
+
+##########################################
+# model 7: procedure for "PSS_T" on fpd
+treatment<-c("PSS_T") #change
+mediators<-c("MSPSS_T")
+outcome<-c("fpd") #change
+covariates<-c("age_1+ marital + income +edu +employ + stimulant +race_cat + Timepoint")
+# Function to fit models and save output
+fit_models <- function(dataset_list) {
+  # Loop over the dataset names
+  for (i in seq_along(dataset_list)) {
+    dataset_name <- dataset_list[i]
+    dataset <- get(dataset_name)#retrieve dataset by name
+    
+    # Fit the mediator model using lmer
+    mediator_model <- lmer(MSPSS_T ~ PSS_T + age_1 + marital + income + #change
+                             edu + employ + stimulant + race_cat + Timepoint + (1 | PID), 
+                           data = dataset)
+    # Save the mediator model
+    assign(paste0("mediatorfit", i), mediator_model, envir = .GlobalEnv)
+    
+    # Fit the dependent variable model using glmer
+    dv_model <- glmer(fpd ~ MSPSS_T + PSS_T + age_1 + marital + income + #change
+                        edu + employ + stimulant + race_cat + Timepoint + (1 | PID), 
+                      data = dataset, family = binomial)
+    # Save the dependent variable model
+    assign(paste0("dvfit", i), dv_model, envir = .GlobalEnv)
+  }
+}
+#call the function to fit glmer and lmer
+fit_models(dataset_list)
+# Pattern to match objects starting with 'mfit' followed by any number
+pattern <- "^mediatorfit[0-9]+$"
+# Get the names of all objects that match the pattern
+mfit_names <- ls(pattern = pattern)
+# Get the values of all matched objects into a list
+mfit_list <- mget(mfit_names)
+pattern <- "^dvfit[0-9]+$"
+# Get the names of all objects that match the pattern
+dvfit_names <- ls(pattern = pattern)
+# Get the values of all matched objects into a list
+dvfit_list <- mget(dvfit_names)
+# Call the function with the dataset list
+# Let's say you have your model objects ready like so:
+# Prepare a list to store the results of the mediate function
+#analysis with DV
+cm_list <- list()
+# Loop through the models
+for(i in seq_along(mfit_list)) {
+  cm_list[[i]] <- mediate(mfit_list[[i]], dvfit_list[[i]], 
+                          treat = 'PSS_T',
+                          mediator = 'MSPSS_T', 
+                          sims = 300, 
+                          seed = 1234, 
+                          boot = FALSE)
+}
+med1<-cm_list[[1]]
+med2<-cm_list[[2]]
+med3<-cm_list[[3]]
+med4<-cm_list[[4]]
+med5<-cm_list[[5]]
+med6<-cm_list[[6]]
+med7<-cm_list[[7]]
+med8<-cm_list[[8]]
+med9<-cm_list[[9]]
+med10<-cm_list[[10]]
+#PartB: this procedure for 1. ade_list matched with "z.avg.group" for the function(x) to output W, 2.tde_list matched with "tau.coef.group" and 3.prop_list matched with n.avg.group
+#Part B1: Function to extract all results
+acme_list <- sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) x$d.avg)
+ade_list <- sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) x$z.avg)
+tde_list <- sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) x$tau.coef)
+prop_list <- sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) x$n.avg)
+#Part B:  
+# Within-imputation variance (W) 
+W <- mean(sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) var(x$d.avg.group))) #replace with "z.avg.group" for ade, "tau.coef.group" for tde, "n.avg.group" for proportion mediated 
+#PartB:# Between-imputation variance (B)
+# Pooled estimate
+pooled_acme <- mean(acme_list)
+B <- sum(sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) (pooled_acme-x$d.avg)^2))/(10-1)
+# Total variance (T)
+T <- W + B + (B/10) 
+# Degrees of freedom for the T distribution
+df <- (10 - 1) * (1 + W/(10 * B))^2
+# Confidence interval using the T distribution
+lower_ci <- pooled_acme - qt(0.975, df) * sqrt(T)
+upper_ci <- pooled_acme + qt(0.975, df) * sqrt(T)
+# Pooled ACME and its 95% CI
+pooled_acme_ci <- c(lower_ci, upper_ci)
+##for ade
+W <- mean(sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) var(x$z.avg.group))) #replace with "z.avg.group" for ade, "tau.coef.group" for tde, "n.avg.group" for proportion mediated 
+#PartB:# Between-imputation variance (B)
+# Pooled estimate
+pooled_ade <- mean(ade_list)
+B <- sum(sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) (pooled_ade-x$z.avg)^2))/(10-1)
+# Total variance (T)
+T <- W + B + (B/10) 
+# Degrees of freedom for the T distribution
+df <- (10 - 1) * (1 + W/(10 * B))^2
+# Confidence interval using the T distribution
+lower_ci <- pooled_ade - qt(0.975, df) * sqrt(T)
+upper_ci <- pooled_ade + qt(0.975, df) * sqrt(T)
+# Pooled ACME and its 95% CI
+pooled_ade_ci <- c(lower_ci, upper_ci)
+##for tde
+#Within-imputation variance(W)
+W <- mean(sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) var(x$tau.coef.group))) # "tau.coef.group" for tde, "n.avg.group" for proportion mediated 
+#PartB:# Between-imputation variance (B)
+# Pooled estimate
+pooled_tde <- mean(tde_list)
+B <- sum(sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) (pooled_tde-x$tau.coef)^2))/(10-1)
+# Total variance (T)
+T <- W + B + (B/10) 
+# Degrees of freedom for the T distribution
+df <- (10 - 1) * (1 + W/(10 * B))^2
+# Confidence interval using the T distribution
+lower_ci <- pooled_tde - qt(0.975, df) * sqrt(T)
+upper_ci <- pooled_tde + qt(0.975, df) * sqrt(T)
+# Pooled ACME and its 95% CI
+pooled_tde_ci <- c(lower_ci, upper_ci)
+##for proprotion mediated
+#within imputation variance
+W <- mean(sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) var(x$n.avg.group))) # "tau.coef.group" for tde, "n.avg.group" for proportion mediated 
+#PartB:# Between-imputation variance (B)
+# Pooled estimate
+pooled_prop <- mean(prop_list)
+B <- sum(sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) (pooled_prop-x$n.avg)^2))/(10-1)
+# Total variance (T)
+T <- W + B + (B/10) 
+# Degrees of freedom for the T distribution
+df <- (10 - 1) * (1 + W/(10 * B))^2
+# Confidence interval using the T distribution
+lower_ci <- pooled_prop - qt(0.975, df) * sqrt(T)
+upper_ci <- pooled_prop + qt(0.975, df) * sqrt(T)
+# Pooled ACME and its 95% CI
+pooled_prop_ci <- c(lower_ci, upper_ci)
+# Create a data frame with the pooled estimates and their confidence intervals
+pooled_results <- data.frame(
+  Estimate = c(pooled_acme, pooled_ade, pooled_tde, pooled_prop),
+  CI_Lower = c(pooled_acme_ci[1], pooled_ade_ci[1], pooled_tde_ci[1], pooled_prop_ci[1]),
+  CI_Upper = c(exp(pooled_acme_ci[2]), exp(pooled_ade_ci[2]), exp(pooled_tde_ci[2]), pooled_prop_ci[2])
+)
+
+# Add row names to identify each estimate
+rownames(pooled_results) <- c("ACME", "ADE", "TDE", "Proportion Mediated")
+
+# Print the results
+mmod_c_PSS_T_fpd<-print(pooled_results) #change
+write.csv(mmod_c_PSS_T_fpd, "/Users/dougcheung/Desktop/FSU Project/quality of life/mediationOutput/mmod_c_PSS_T_fpd.csv")
+
+##########################################
+# model 8: procedure for "fmd" on fpd
+treatment<-c("fmd") #change
+mediators<-c("MSPSS_T")
+outcome<-c("fpd") #change
+covariates<-c("age_1+ marital + income +edu +employ + stimulant  +race_cat + Timepoint")
+# Function to fit models and save output
+fit_models <- function(dataset_list) {
+  # Loop over the dataset names
+  for (i in seq_along(dataset_list)) {
+    dataset_name <- dataset_list[i]
+    dataset <- get(dataset_name)#retrieve dataset by name
+    
+    # Fit the mediator model using lmer
+    mediator_model <- lmer(MSPSS_T ~ fmd + age_1 + marital + income + #change
+                             edu + employ + stimulant + race_cat + Timepoint + (1 | PID), 
+                           data = dataset)
+    # Save the mediator model
+    assign(paste0("mediatorfit", i), mediator_model, envir = .GlobalEnv)
+    
+    # Fit the dependent variable model using glmer
+    dv_model <- glmer(fpd ~ MSPSS_T + fmd + age_1 + marital + income + #change
+                        edu + employ + stimulant + race_cat + Timepoint + (1 | PID), 
+                      data = dataset, family = binomial)
+    # Save the dependent variable model
+    assign(paste0("dvfit", i), dv_model, envir = .GlobalEnv)
+  }
+}
+#call the function to fit glmer and lmer
+fit_models(dataset_list)
+# Pattern to match objects starting with 'mfit' followed by any number
+pattern <- "^mediatorfit[0-9]+$"
+# Get the names of all objects that match the pattern
+mfit_names <- ls(pattern = pattern)
+# Get the values of all matched objects into a list
+mfit_list <- mget(mfit_names)
+pattern <- "^dvfit[0-9]+$"
+# Get the names of all objects that match the pattern
+dvfit_names <- ls(pattern = pattern)
+# Get the values of all matched objects into a list
+dvfit_list <- mget(dvfit_names)
+# Call the function with the dataset list
+# Let's say you have your model objects ready like so:
+# Prepare a list to store the results of the mediate function
+#analysis with DV
+cm_list <- list()
+# Loop through the models
+for(i in seq_along(mfit_list)) {
+  cm_list[[i]] <- mediate(mfit_list[[i]], dvfit_list[[i]], 
+                          treat = 'fmd',
+                          mediator = 'MSPSS_T', 
+                          sims = 300, 
+                          seed = 1234, 
+                          boot = FALSE)
+}
+med1<-cm_list[[1]]
+med2<-cm_list[[2]]
+med3<-cm_list[[3]]
+med4<-cm_list[[4]]
+med5<-cm_list[[5]]
+med6<-cm_list[[6]]
+med7<-cm_list[[7]]
+med8<-cm_list[[8]]
+med9<-cm_list[[9]]
+med10<-cm_list[[10]]
+#PartB: this procedure for 1. ade_list matched with "z.avg.group" for the function(x) to output W, 2.tde_list matched with "tau.coef.group" and 3.prop_list matched with n.avg.group
+#Part B1: Function to extract all results
+acme_list <- sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) x$d.avg)
+ade_list <- sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) x$z.avg)
+tde_list <- sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) x$tau.coef)
+prop_list <- sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) x$n.avg)
+#Part B:  
+# Within-imputation variance (W) 
+W <- mean(sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) var(x$d.avg.group))) #replace with "z.avg.group" for ade, "tau.coef.group" for tde, "n.avg.group" for proportion mediated 
+#PartB:# Between-imputation variance (B)
+# Pooled estimate
+pooled_acme <- mean(acme_list)
+B <- sum(sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) (pooled_acme-x$d.avg)^2))/(10-1)
+# Total variance (T)
+T <- W + B + (B/10) 
+# Degrees of freedom for the T distribution
+df <- (10 - 1) * (1 + W/(10 * B))^2
+# Confidence interval using the T distribution
+lower_ci <- pooled_acme - qt(0.975, df) * sqrt(T)
+upper_ci <- pooled_acme + qt(0.975, df) * sqrt(T)
+# Pooled ACME and its 95% CI
+pooled_acme_ci <- c(lower_ci, upper_ci)
+##for ade
+W <- mean(sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) var(x$z.avg.group))) #replace with "z.avg.group" for ade, "tau.coef.group" for tde, "n.avg.group" for proportion mediated 
+#PartB:# Between-imputation variance (B)
+# Pooled estimate
+pooled_ade <- mean(ade_list)
+B <- sum(sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) (pooled_ade-x$z.avg)^2))/(10-1)
+# Total variance (T)
+T <- W + B + (B/10) 
+# Degrees of freedom for the T distribution
+df <- (10 - 1) * (1 + W/(10 * B))^2
+# Confidence interval using the T distribution
+lower_ci <- pooled_ade - qt(0.975, df) * sqrt(T)
+upper_ci <- pooled_ade + qt(0.975, df) * sqrt(T)
+# Pooled ACME and its 95% CI
+pooled_ade_ci <- c(lower_ci, upper_ci)
+##for tde
+#Within-imputation variance(W)
+W <- mean(sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) var(x$tau.coef.group))) # "tau.coef.group" for tde, "n.avg.group" for proportion mediated 
+#PartB:# Between-imputation variance (B)
+# Pooled estimate
+pooled_tde <- mean(tde_list)
+B <- sum(sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) (pooled_tde-x$tau.coef)^2))/(10-1)
+# Total variance (T)
+T <- W + B + (B/10) 
+# Degrees of freedom for the T distribution
+df <- (10 - 1) * (1 + W/(10 * B))^2
+# Confidence interval using the T distribution
+lower_ci <- pooled_tde - qt(0.975, df) * sqrt(T)
+upper_ci <- pooled_tde + qt(0.975, df) * sqrt(T)
+# Pooled ACME and its 95% CI
+pooled_tde_ci <- c(lower_ci, upper_ci)
+##for proprotion mediated
+#within imputation variance
+W <- mean(sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) var(x$n.avg.group))) # "tau.coef.group" for tde, "n.avg.group" for proportion mediated 
+#PartB:# Between-imputation variance (B)
+# Pooled estimate
+pooled_prop <- mean(prop_list)
+B <- sum(sapply(list(med1, med2, med3, med4, med5,med6,med7,med8,med9,med10), function(x) (pooled_prop-x$n.avg)^2))/(10-1)
+# Total variance (T)
+T <- W + B + (B/10) 
+# Degrees of freedom for the T distribution
+df <- (10 - 1) * (1 + W/(10 * B))^2
+# Confidence interval using the T distribution
+lower_ci <- pooled_prop - qt(0.975, df) * sqrt(T)
+upper_ci <- pooled_prop + qt(0.975, df) * sqrt(T)
+# Pooled ACME and its 95% CI
+pooled_prop_ci <- c(lower_ci, upper_ci)
+# Create a data frame with the pooled estimates and their confidence intervals
+pooled_results <- data.frame(
+  Estimate = c(pooled_acme, pooled_ade, pooled_tde, pooled_prop),
+  CI_Lower = c(pooled_acme_ci[1], pooled_ade_ci[1], pooled_tde_ci[1], pooled_prop_ci[1]),
+  CI_Upper = c(exp(pooled_acme_ci[2]), exp(pooled_ade_ci[2]), exp(pooled_tde_ci[2]), pooled_prop_ci[2])
+)
+
+# Add row names to identify each estimate
+rownames(pooled_results) <- c("ACME", "ADE", "TDE", "Proportion Mediated")
+
+# Print the results
+mmod_c_fmd_fpd<-print(pooled_results) #change
+write.csv(mmod_c_fmd_fpd, "/Users/dougcheung/Desktop/FSU Project/quality of life/mediationOutput/mmod_c_fmd_T_fpd.csv")
