@@ -1,0 +1,1208 @@
+#install.packages("lsmeans")
+#install.packages("afex")
+#install.packages("mice")
+summary(imp.models)
+#install.packages("broom")
+#install.packages("tidy")
+#install.packages("glmmTMB")
+#install.packages("merTools")
+#install.packages("plyr")
+#install.packages("lmerTest")
+#install.packages("jtools")
+#install.packages("magrittr")
+remove.packages()
+detach("package:lmerTest", unload=TRUE)
+detach("package:afex", unload=TRUE)
+detach("package:lmerTest", unload=TRUE)
+install.packages("psych")
+library(jtools)
+install.packages("TMB")
+remove.packages("jomo")
+install.packages("Matrix")
+install.packages("survival")
+install.packages("ranger")
+install.packages("glmnet")
+install.packages("collapse")
+install.packages("lme4")
+library(afex)
+library(lsmeans)
+
+library(lmtest)
+# install.packages("devtools")
+devtools::install_github("r-lib/conflicted")
+library(lmerTest)
+library(lme4)
+library(merTools)
+library(gmodels)
+library(plyr)
+library(broom)
+library(dplyr)
+library(tidyverse)
+library(multilevel)
+library(nonnest2)
+library(psych)
+library(magrittr)
+
+detachAllPackages <- function() {
+  
+  basic.packages <- c("package:stats","package:graphics","package:grDevices","package:utils","package:datasets","package:methods","package:base")
+  
+  package.list <- search()[ifelse(unlist(gregexpr("package:",search()))==1,TRUE,FALSE)]
+  
+  package.list <- setdiff(package.list,basic.packages)
+  
+  if (length(package.list)>0)  for (package in package.list) detach(package, character.only=TRUE)
+  
+}
+
+detachAllPackages()
+
+library(Matrix)
+library(Amelia)
+#import data
+library(readxl)
+library(haven)
+library(tidyverse)
+library(dplyr)
+library(mice)
+library(glmmTMB)
+library(tidyverse)
+library(Amelia)
+library(broom)
+library(broom.mixed)
+
+f1 <- read_sav("/Users/dougcheung/Library/Mobile Documents/com~apple~CloudDocs/FSU Project/Data/HIV_HTN Survey Dataset Timepoint Cleaned - 5.18.23.sav")
+f0 <- read_excel("/Users/dougcheung/Library/Mobile Documents/com~apple~CloudDocs/FSU Project/Data/HIV HTN Ethnicity Demographics Recode.xlsx")
+
+#merge f and f0 
+f<-merge(f1,f0,by=c("PID","Timepoint"))
+table(f$ComputedAge)
+table(f$DOB_1)
+f$age<- 2023-f$DOB_1
+table(f$age, f$Timepoint)
+f$age_cat <- ifelse(f$age<=35,"26-35",
+                    ifelse(f$age>=36 & f$age<=45,"36-45",
+                           ifelse(f$age>=46 & f$age<=55,"46-55",
+                                  ifelse(f$age>=56 & f$age<=65,"56-65",
+                                         ifelse(f$age>=65 & f$age<=84, "65+",NA)))))
+f1$Timepoint <- as.character(f1$Timepoint)
+f0$Timepoint <- as.character(f0$Timepoint)
+# Check unique combinations in f1
+unique_f1 <- f1 %>% 
+  select(PID, Timepoint) %>% 
+  unique()
+
+# Check unique combinations in f0
+unique_f0 <- f0 %>% 
+  select(PID, Timepoint) %>% 
+  unique()
+
+# Check combinations in f1 not in f0
+in_f1_not_f0 <- setdiff(unique_f1, unique_f0)
+print(in_f1_not_f0)
+
+# Check combinations in f0 not in f1
+in_f0_not_f1 <- setdiff(unique_f0, unique_f1)
+print(in_f0_not_f1)
+
+na_timepoint_pids <- subset(f, is.na(Timepoint))$PID
+print(na_timepoint_pids)
+     
+table(f$age_cat, f$Timepoint, useNA="always")
+table(f$EMPL)
+f$employ <- ifelse(f$EMPL==1 | f$EMPL==3,"Fulltime",
+                   ifelse(f$EMPL==2,"Partime",
+                          ifelse(f$EMPL==4 | f$EMPL==6,"Unempl_retired",
+                                 ifelse(f$EMPL==5,"Diasabled",NA))))
+table(f$employ, f$Timepoint, useNA="always")
+
+f$employ<-factor(f$employ,levels=c("Fulltime","Partime","Unempl_retired","Diasabled"))
+
+f$employ1 <- ifelse(f$EMPL<=3 ,"Employed",
+                          ifelse(f$EMPL==4 | f$EMPL==6,"Unempl_retired",
+                                 ifelse(f$EMPL==5,"Diasabled",NA)))
+table(f$employ1, f$Timepoint, useNA="always")
+
+f$employ1<-factor(f$employ1,levels=c("Employed","Unempl_retired","Diasabled"))
+
+table(f$ED)
+f$edu1 <- ifelse(f$ED>=1 & f$ED<=3,"Grade6to7",
+                ifelse(f$ED==4,"Somecollage",
+                       ifelse(f$ED==5,"Bachelor",
+                              ifelse(f$ED>=6,"Postgrad",NA))))
+
+# Convert Timepoint to a factor
+f$Timepoint <- factor(f$Timepoint)
+
+table(f$ED,f$Timepoint,useNA="always")                            
+f$edu <- ifelse(f$ED>=1 & f$ED<=3,"Grade6to12",
+                ifelse(f$ED==4,"Somecollege",
+                       ifelse(f$ED>=5,"BachelororMore",NA)))
+
+
+
+f$edu<-as.factor(f$edu)
+f$edu <-factor(f$edu ,levels=c("BachelororMore","Grade6to12","Somecollege"))
+table(f$edu,f$Timepoint, useNA="always")
+str(f$edu)
+table(f$MARSTA)
+f$marital<-ifelse(f$MARSTA==1,"NeverMarried",
+                  ifelse(f$MARSTA==2,"Married",
+                         ifelse(f$MARSTA==3 | f$MARSTA==4,"DivorWidow",
+                                ifelse(f$MARSTA==5,"COliving",NA))))
+f$marital<-factor(f$marital,levels=c("NeverMarried","Married","DivorWidow","COliving"))
+table(f$marital, f$Timepoint, useNA="always")
+f$marital1<-ifelse(f$MARSTA==1,"NeverMarried",
+                  ifelse(f$MARSTA==2 | f$MARSTA==5,"Married/COliving",
+                         ifelse(f$MARSTA==3 | f$MARSTA==4,"DivorWidow",NA)))
+f$marital1<-factor(f$marital1,levels=c("NeverMarried","Married/COliving","DivorWidow"))
+
+
+
+table(f$INC)
+f$income<-ifelse(f$INC==1,"10k",
+            ifelse(f$INC>=2 & f$INC<=3, "10to29k",
+                 ifelse(f$INC>3 & f$INC<=6, "30k50k",
+                        ifelse(f$INC>=7, "60kplus",NA))))
+
+f$income1<-ifelse(f$INC==1,"10k",
+                 ifelse(f$INC==2 , "10to20k",
+                        ifelse(f$INC==3,"21-30K",
+                        ifelse(f$INC>3 & f$INC<=6, "31k-50k",
+                               ifelse(f$INC>6 & f$INC<=8,"41-50k",
+                                      ifelse(f$INC==9 & f$INC==10,"51-60k",
+                                              ifelse(f$INC>=11,"61kplus",NA)))))))
+
+
+
+
+f$income<-as.factor(f$income)
+f$income<-factor(f$income,levels=c("60kplus","10k","10to29k","30k50k"))
+table(f$income, f$Timepoint, useNA="always")
+table(f$sex_ID)
+f$identity<-ifelse(f$sex_ID==1,"Gay",
+                   ifelse(f$sex_ID==2,"Bi",
+                          ifelse(f$sex_ID==3 | f$sex_ID==4,"HeteroStraight",NA)))
+f$identity <-factor(f$identity ,levels=c("Gay","Bi","HeteroStraight"))
+
+table(f$identity, f$Timepoint, useNA="always")
+table(f$SU_1_1)
+f$stimulant<-ifelse(f$SU_1_1==1 |f$SU_1_2==1 |f$SU_1_3==1 | f$SU_1_6==1,1,
+                    ifelse(f$SU_1_1==0 & f$SU_1_2==0 & f$SU_1_3==0 & f$SU_1_6==0,0,NA))
+summary(f$su_sum)
+table(f$stimulant, f$Timepoint, useNA="always")
+table(f$SU_1_6,f$Timepoint, useNA="always")
+table(f$SU_1_1,f$Timepoint, useNA="always")
+table(f$SU_1_2,f$Timepoint, useNA="always")
+table(f$SU_1_3,f$Timepoint, useNA="always")
+table(f$SU_1_4,f$Timepoint, useNA="always")
+table(f$SU_1_5,f$Timepoint, useNA="always")
+table(f$SU_1_6,f$Timepoint, useNA="always")
+table(f$SU_2,f$Timepoint, useNA="always")
+table(f$SU_3,f$Timepoint, useNA="always")
+
+f$csa<-ifelse(f$ETI_SE_1==1 | f$ETI_SE_2==1 | f$ETI_SE_3==1 | f$ETI_SE_4==1 | f$ETI_SE_5==1 | f$ETI_SE_6==1,1,
+              ifelse(f$ETI_SE_1==2 & f$ETI_SE_2==2 & f$ETI_SE_3==2 & f$ETI_SE_4==2 & f$ETI_SE_5==2 & f$ETI_SE_6==2,0,NA))
+
+table(f$csa,f$Timepoint, useNA="always")
+
+summary(f$CESDR_T)
+f$depression<-ifelse(f$CESDR_T>=16,1,
+                     ifelse(f$CESDR_T<16,0,NA))
+table(f$depression, f$Timepoint, useNA="always")
+summary(f$OASIS_T)
+f$anxiety<- ifelse(f$OASIS_T>=8,1,
+                   ifelse(f$OASIS_T<8,0,NA))
+table(f$anxiety, f$Timepoint, useNA="always")
+summary(f$GAD7)
+f$anxiety1<-ifelse(f$GAD7>=10,1,
+                   ifelse(f$GAD7<10,0,NA))
+table(f$anxiety1, f$Timepoint, useNA="always")
+
+summary(f$BRCS_T)
+f$cope<-ifelse(f$BRCS_T>=15,1,
+               ifelse(f$BRCS_T<15,0,NA))
+
+summary(f$MSPSS_T)
+f$social<-ifelse(f$MSPSS_T>=5,1,
+                  ifelse(f$MSPSS_T<5,0,NA))
+f$race<-f$`Race (Single)`
+f$race_cat<- ifelse(f$race=="White","White",
+                  ifelse(f$race=="Asian" | f$race=="NHPI","API",
+                         ifelse(f$race=="Black","Black", 
+                                ifelse(f$race=="Latinx"|f$race=="Multiracial"| f$race=="Indigenous" | f$race=="Unknown","Others",NA))))
+f$race_cat <-factor(f$race_cat ,levels=c("White","API","Black","Others"))
+table(f$race,useNA="always")
+table(f$race_cat,useNA="always")
+f$race_white[f$race_cat=="White"]<-1
+f$race_white[f$race_cat!="White"]<-0
+f$race_white<-replace(f$race_white, is.na(f$race_white),0)
+table(f$race_white,useNA="always")
+table(f$race_cat1,useNA="always")
+table(f$race,useNA="always")
+f$race_API[f$race=="Asian"|f$race=="NHPI" ]<-1
+f$race_API<-replace(f$race_API, is.na(f$race_API),0)
+table(f$race_API,useNA="always")
+f$race_asian[f$race=="Asian" ]<-1
+f$race_asian<-replace(f$race_asian, is.na(f$race_asian),0)
+f$race_PI[f$race=="NHPI" ]<-1
+f$race_PI<-replace(f$race_PI, is.na(f$race_PI),0)
+table(f$race_API,useNA="always")
+table(f$race_API,useNA="always")
+f$race_black[f$race=="Black"]<-1
+f$race_black<-replace(f$race_black, is.na(f$race_black),0)
+table(f$race_black,useNA="always")
+
+f$homo<-ifelse(f$IHS_M>=2.444,2,
+               ifelse(f$IHS_M<2.444,1,NA))
+table(f$homo)
+f$sex_man2_1<-ifelse(f$sex_man2=="021",21,
+                    ifelse(f$sex_man2=="1 3",13,f$sex_man2))
+table(f$sex_man2_1)
+f$sex_man2_1<-as.numeric(f$sex_man2_1)
+
+f$day_d<-ifelse(f$EOD10DAILY_SUM>=15.68,2,
+                ifelse(f$EOD10DAILY_SUM<15.48,1,NA))
+
+f$social_cat<-ifelse(f$MSPSS_T>=4.853,2,
+                     ifelse(f$MSPSS_T<4.853,1,NA))
+
+f$cope_cat<-ifelse(f$BRCS_T>=15.18,2,
+                   ifelse(f$BRCS_T<15.18,1,NA))
+f$race_cat1<-ifelse(f$race=="Asian" | f$race=="Indigenous" |f$race=="NHPI","API",
+                    ifelse(f$race=="Black","Black",
+                           ifelse(f$race=="Latinx","Latinx",
+                                  ifelse(f$race=="Multiracial","Multiracial",
+                                         ifelse(f$race=="White","White",
+                                                ifelse(f$race=="Unknown",NA,NA))))))
+f$race_cat2<-ifelse(f$race=="Asian" ,"Asian",
+                    ifelse(f$race=="Black","Black",
+                           ifelse(f$race=="Latinx","Latinx",
+                                  ifelse(f$race=="Multiracial","Multiracial",
+                                         ifelse(f$race=="White","White",
+                                                ifelse(f$race=="Indigenous" |f$race=="NHPI","native",
+                                                       ifelse(f$race=="Unknown",NA,NA)))))))
+
+
+table(f$race_cat1, useNA="always")
+f$su_sum<-f$SU_4_R + f$SU_5_R + f$SU_6_R + f$SU_7_R
+table(f$HRQOL_1, useNA="always")
+f$ghealth<-ifelse(f$HRQOL_1<=3,0,
+                  ifelse(f$HRQOL_1>=4,1,NA))
+table(f$ghealth,f$HRQOL_1)
+f$fpd<-ifelse(f$HRQOL_2>=14,1,
+              ifelse(f$HRQOL_2<14,0,NA))
+table(f$HRQOL_3)
+f$SN_sum<-(f$SN_5_1+f$SN_5_2+f$SN_5_3+f$SN_5_4+f$SN_5_5)/5
+f$fmd<-ifelse(f$HRQOL_3>=14,1,
+              ifelse(f$HRQOL_3<14,0,NA))
+table(f$HRQOL_3_4)
+f$fal<-ifelse(f$HRQOL_4>=14,1,
+              ifelse(f$HRQOL_4<14,0,NA))
+table(f$fal)
+f$age_1<-f$age
+f$age_1[f$age>90]<-58
+f$age_1<-as.numeric(f$age_1)
+f$LOC_1a<-ifelse(f$LOC_1<=4,0,
+                 ifelse(f$LOC_1>4,1,NA))
+
+f$LOC_1a<-ifelse(f$LOC_1==4,3,
+                 ifelse(f$LOC_1==5,4,f$LOC_1))
+                
+
+f$su_sum<-f$SU_4_R + f$SU_5_R + f$SU_6_R + f$SU_7_R
+f$Child1<-ifelse(f$Child<=4,1,
+                ifelse(f$Child==5,0,NA))
+f$SO1<-ifelse(f$SO>=2,1,
+             ifelse(f$SO<=1,0,NA))
+table(f$SO1)
+f$HRQOL_1a<-ifelse(f$HRQOL_1==5,1,
+                  ifelse(f$HRQOL_1<=4,0,NA))
+f$MCHCI_10Ta[f$MCHCI_10T==1]<-1
+f$MCHCI_10Ta[f$MCHCI_10T==2]<-0
+f$etihhd_sum<-f$ETI_GT_4_R+ f$ETI_GT_5_R+ f$ETI_GT_6_R+ f$ETI_GT_7_R+ f$ETI_GT_8_R+ f$ETI_GT_9_R
+f$etigen_sum<-f$ETI_GT_1_R+ f$ETI_GT_2_R+ f$ETI_GT_3_R+ f$ETI_1_R +f$ETI_2_R 
+f$PSQI_5_sum<-(f$PSQI_5-1)+(f$PSQI_6-1)+(f$PSQI_7-1)+(f$PSQI_8-1)+(f$PSQI_9-1)+(f$PSQI_10-1)+(f$PSQI_11-1)+(f$PSQI_12-1)+(f$PSQI_13-1)
+
+
+
+library(dplyr)
+f$HRQOL_2_2_re <- ifelse(f$HRQOL_2_2 >= 14, 1, 0)
+f$HRQOL_3_4_re <- ifelse(f$HRQOL_3_4 >= 14, 1, 0)
+library(tidyverse)
+f$eti_emo2<-ifelse(f$ETIEmotional_SUM>=4,2,1)
+f$eti_phy2<-ifelse(f$ETIPhysical_SUM>=4,2,1)
+f$eti_sex2<-ifelse(f$ETISexual_SUM>=3,2,1)
+f$eti_hhd2<-ifelse(f$etihhd_sum>4,2,1)
+f$eti_gen2<-ifelse(f$etigen_sum>3,2,1)
+
+summary(f$ETIEmotional_SUM)
+summary(f$ETIPhysical_SUM)
+summary(f$ETISexual_SUM)
+summary(f$etihhd_sum)
+summary(f$etigen_sum)
+table(f$eti_emo2)
+table(f$eti_phy2)
+
+
+#recode CESDR_T into binary by cutoff at 14 
+f$CESDR_bin <- ifelse(f$CESDR_T >= 14, 1, 0)
+#recode CESDR_T into binary >=14 =2 else 1
+f$CESDR_bin2 <- ifelse(f$CESDR_T >= 14, 2, 1)
+#recode GAD7 into binary by cutoff at 10
+f$GAD7_bin <- ifelse(f$GAD7 >= 10, 1, 0)
+#recode GAD7 into binary >=10 =2 else 1
+f$GAD7_bin2 <- ifelse(f$GAD7 >= 10, 2, 1)
+
+#recode HRQOL_2_2, HRQOL_3_4 if >= 14 then 1 else 0
+f$HRQOL_2_2_re <- ifelse(f$HRQOL_2_2 >= 14, 1, 0)
+f$HRQOL_3_4_re <- ifelse(f$HRQOL_3_4 >= 14, 1, 0)
+
+# Define the variables to be recoded
+vars_to_recode <- c("ETI_GT_1","ETI_GT_2","ETI_GT_3", "ETI_GT_4", "ETI_GT_5", "ETI_GT_6", "ETI_GT_7", "ETI_GT_8", "ETI_GT_9", "ETI_GT_10", 
+                    "ETI_PP_1", "ETI_PP_2", "ETI_PP_3", "ETI_PP_4", "ETI_PP_5", "ETI_EA_1", "ETI_EA_2", "ETI_EA_3", "ETI_EA_4", "ETI_EA_5", "ETI_SE_1", "ETI_SE_2", "ETI_SE_3", "ETI_SE_4", "ETI_SE_5", "ETI_SE_6", "ETI_1", "ETI_2")
+# Loop over the variables
+for (var in vars_to_recode) {
+  # Recode the variable
+  f[[paste0(var, "_re")]] <- ifelse(f[[var]] == 1, 2, 1)
+}
+for (var in vars_to_recode) {
+  # Recode the variable
+  f[[paste0(var, "_re0")]] <- ifelse(f[[var]] == 1, 1, 0)
+}
+
+# Check the recoded variables
+head(f) 
+summary(f)
+#scoring according to MCA coordinates 
+#eti_1: 7,8,11,14,15,16,17,18,19,20
+#eti_2: 11,13,15,16,17,18,21,22,23,24,25
+#eti_3: 4, 9,17,18,19,20,27,28
+#eti_4: 4,6,7,8,10,11,13,16,27
+
+# Subset for Timepoint 1
+f_timepoint_1 <- f %>%
+  filter(Timepoint == 1)
+
+summary(f_timepoint_1$ETISexual_SUM)
+f_timepoint_1$scat<-ifelse(f_timepoint_1$ETISexual_SUM<=quantile(f_timepoint_1$ETISexual_SUM, 0.25, na.rm = TRUE),1,ifelse(f_timepoint_1$ETISexual_SUM>=quantile(f_timepoint_1$ETISexual_SUM, 0.25, na.rm = TRUE) & f_timepoint_1$ETISexual_SUM<=quantile(f_timepoint_1$ETISexual_SUM, 0.75, na.rm = TRUE),2,ifelse(f_timepoint_1$ETISexual_SUM>quantile(f_timepoint_1$ETISexual_SUM, 0.75, na.rm = TRUE),3,4)))
+
+f_timepoint_1$pcat<-ifelse(f_timepoint_1$ETIPhysical_SUM<=quantile(f_timepoint_1$ETIPhysical_SUM, 0.25, na.rm = TRUE),1,ifelse(f_timepoint_1$ETIPhysical_SUM>=quantile(f_timepoint_1$ETIPhysical_SUM, 0.25, na.rm = TRUE) & f_timepoint_1$ETIPhysical_SUM<=quantile(f_timepoint_1$ETISexual_SUM, 0.75, na.rm = TRUE),2,ifelse(f_timepoint_1$ETIPhysical_SUM>quantile(f_timepoint_1$ETIPhysical_SUM, 0.75, na.rm = TRUE),3,4)))
+
+f_timepoint_1$ecat<-ifelse(f_timepoint_1$ETIEmotional_SUM<=quantile(f_timepoint_1$ETIEmotional_SUM, 0.25, na.rm = TRUE),1,ifelse(f_timepoint_1$ETIEmotional_SUM>=quantile(f_timepoint_1$ETIEmotional_SUM, 0.25, na.rm = TRUE) & f_timepoint_1$ETIEmotional_SUM<=quantile(f_timepoint_1$ETIEmotional_SUM, 0.75, na.rm = TRUE),2,ifelse(f_timepoint_1$ETIEmotional_SUM>quantile(f_timepoint_1$ETIEmotional_SUM, 0.75, na.rm = TRUE),3,4)))
+
+#aggregated means (combinatorial) of f_timepoint_1$HRQOL_5_1 by f_timepoint_1$ecat, f_timepoint_1$pcat, f_timepoint_1$scat
+library(ggplot2)
+library(dplyr)
+#AMeanByACEType-----------
+# Example summarisation, replace with your actual data frame and variables
+am_pace <- f_timepoint_1 %>%
+  group_by(ecat, pcat, scat) %>%
+  summarise(mean_HRQOL_5_1 = mean(HRQOL_5_1, na.rm = TRUE)) %>%
+  ungroup()  # It's a good practice to ungroup after summarising
+# Ensure 'am_pace$scat' is a factor if not already
+am_pace$scat <- factor(am_pace$scat)
+am_pace$ecat <- factor(am_pace$ecat)
+am_pace$pcat <- factor(am_pace$pcat)
+
+# Define a grayscale color palette for the 3 levels of 'scat'
+colors <- c("lightgrey", "darkgrey", "black")
+
+# Custom labeller function to add more descriptive facet labels
+# Ensure the names here match the levels printed above
+descriptive_labeller <- as_labeller(c("ecat" = "Emotional", "pcat" = "Physical"))
+
+#Plot#1-A-mean-ACEtype-----------
+ggplot(am_pace, aes(x = scat, y = mean_HRQOL_5_1, fill = as.numeric(as.character(scat)))) +
+  geom_bar(stat = "identity", position = position_dodge()) +
+  facet_grid(ecat ~ pcat, scales = "free_x", labeller = label_both) +
+  labs(title = "Aggregated Mean of HRQOL_5_1 by Ecat, Pcat, and Scat",
+       x = "Scat",
+       y = "Mean HRQOL_5_1") +
+  scale_fill_gradient(low = "lightgrey", high = "darkgrey", 
+                      name = "Scat Level", 
+                      breaks = 1:3, labels = c("1", "2", "3")) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+####Takeway1: watch out for non-linearity messing up model########
+
+# View the result
+print(am_pace, n=25) #NAs have very high pain values
+
+# Subset for Timepoint 4
+f_timepoint_4 <- f %>%
+  filter(Timepoint == 4)
+f_timepoint_3 <- f %>%
+  filter(Timepoint == 3)
+f_timepoint_2 <- f %>%
+  filter(Timepoint == 2)
+f$PID<-as.factor(f$PID)
+
+# Join values from Timepoint 4
+merged_f <-f_timepoint_1 %>%
+  left_join(f_timepoint_4 %>% select(PID, HRQOL_3_4_re,HRQOL_2_2_re, GAD7_bin,CESDR_bin,stimulant,GAD7, CESDR_T,su_sum, SU_2,SU_3,MSPSS_T,MSPSS_Fa,MSPSS_Fr,MSPSS_S0,HRQOL_5_1,PSQI_5_sum), by = "PID", suffix = c("", "_4"))
+
+merged_f<- merged_f %>%
+  left_join(f_timepoint_3 %>% select(PID, HRQOL_3_4_re,HRQOL_2_2_re, GAD7_bin,CESDR_bin,stimulant,GAD7, CESDR_T,su_sum, SU_2,SU_3,MSPSS_T,MSPSS_Fa,MSPSS_Fr,MSPSS_S0,HRQOL_5_1,PSQI_5_sum), by = "PID", suffix = c("", "_3"))
+
+merged_f <- merged_f %>%
+  left_join(f_timepoint_2 %>% select(PID, HRQOL_3_4_re,HRQOL_2_2_re, GAD7_bin,CESDR_bin,stimulant,GAD7, CESDR_T,su_sum, SU_2,SU_3,MSPSS_T,MSPSS_Fa,MSPSS_Fr,MSPSS_S0,HRQOL_5_1,PSQI_5_sum), by = "PID", suffix = c("", "_2"))
+
+# Convert scat to a factor if it represents discrete categories
+merged_f$scat <- as.factor(merged_f$scat)
+scale_color_gradient(low = "grey80", high = "black")
+merged_f_na <- merged_f %>% filter(!is.na(PSQI_5_sum) & !is.na(HRQOL_5_1_2) & !is.na(scat) & !is.na(pcat) & !is.na(ecat))
+merged_f_na$scat <- as.factor(merged_f_na$scat)
+merged_f_na$pcat <- as.factor(merged_f_na$pcat)
+merged_f_na$ecat <- as.factor(merged_f_na$ecat)
+
+#PLot#2-y:PainCount, x:SleepInScore by SexACE ---- 
+ggplot(merged_f_na, aes(x = PSQI_5_sum, y = HRQOL_5_1_2, color = scat)) +
+  geom_point() +
+  theme_minimal() +
+  labs(title = "Relationship between PSQI_5_sum and HRQOL_5_1_2_n by ETISexual_SUM Category",
+       x = "PSQI_5_sum",
+       y = "HRQOL_5_1_2_n",
+       color = "ETISexual_SUM Category") +
+  scale_color_grey(start = 0.8, end = 0.2) +   # Gradient for continuous coloring
+  geom_smooth(method = "lm", se = FALSE, aes(group = scat))
+####Takeaway2:some interaction but the scat 2's-dots on upper right corner are outliers scat2 will have a steeper slope than scat3; scat3's dots in the bottom will mess up the slope (less steep than 1) 1##############################
+
+#Plot#3-y:PainCount, x:SleepS by PhyACE-------
+ggplot(merged_f_na, aes(x = PSQI_5_sum, y = HRQOL_5_1_2, color = pcat)) +
+  geom_point() +
+  theme_minimal() +
+  labs(title = "Relationship between PSQI_5_sum and HRQOL_5_1_2_n by ETIPhysical_SUM Category",
+       x = "PSQI_5_sum",
+       y = "HRQOL_5_1_2_n",
+       color = "pcat") +
+  scale_color_grey(start = 0.8, end = 0.2) +   # Gradient for continuous coloring
+  geom_smooth(method = "lm", se = FALSE, aes(group = pcat))
+####Takeaway3: a clear interaction by different slopes phyACE######
+
+#Plot#4-y:PainCount, x:SleepS by EmoACE-------
+ggplot(merged_f_na, aes(x = PSQI_5_sum, y = HRQOL_5_1_2, color = ecat)) +
+  geom_point() +
+  theme_minimal() +
+  labs(title = "Relationship between PSQI_5_sum and HRQOL_5_1_2_n by ETIEmotional_SUM Category",
+       x = "PSQI_5_sum",
+       y = "HRQOL_5_1_2_n",
+       color = "ecat") +
+  scale_color_grey(start = 0.8, end = 0.2) +  # Use grayscale for coloring
+  geom_smooth(method = "lm", se = FALSE, aes(group = ecat))
+####Takeaway4: a clear interaction by different slopes emoACE & SexACE underreported/MAR/MNAR missing (highest pain mean)########
+
+#Mod#1:Poisson Model#PhyACE by SleepS (all linear)----------------
+in2<-glm(as.numeric(HRQOL_5_1_2)~PSQI_5_sum*ETIPhysical_SUM,data=imp_mf3,family=poisson)
+tab_model(in2)
+##Distribution ?M=VAR #but Poisson is great for binary data > logistic
+mean(merged_f$HRQOL_5_1,na.rm=TRUE)
+var(merged_f$HRQOL_5_1,na.rm=TRUE)
+#zero inflation
+hist(merged_f$HRQOL_5_1, breaks = 20)
+####Takeaway5: modeling painful days as count is painful =/
+
+########SKIP to LPA? ########
+###Flowchart-count model: https://www.researchgate.net/publication/351041629_Statistical_models_for_analyzing_count_data_predictors_of_length_of_stay_among_HIV_patients_in_Portugal_using_a_multilevel_model/figures?lo=1##################
+
+# Convert scat to a factor if it represents discrete categories
+merged_f$HRQOL_5_1_2<-as.numeric(as.character(merged_f$HRQOL_5_1_2))
+# with poisson
+p1pse<-glm(HRQOL_5_1~ PSQI_5_sum * ETIEmotional_SUM, data = merged_f, family = poisson)
+p1psp<-glm(HRQOL_5_1~ PSQI_5_sum * ETIPhysical_SUM, data = merged_f, family = poisson)
+p1pss<-glm(HRQOL_5_1~ PSQI_5_sum * ETISexual_SUM, data = merged_f, family = poisson)
+p1psr<-glm(HRQOL_5_1~ ETISexual_SUM*race_cat, data = merged_f, family = poisson)
+tab_model(p1pse,p1psp,p1pss)
+tab_model(p1psr)
+# with poisson at T2 
+p2pse<-glm(HRQOL_5_1_2~ PSQI_5_sum * ETIEmotional_SUM, data = merged_f, family = poisson)
+p2psp<-glm(HRQOL_5_1_2~ PSQI_5_sum * ETIPhysical_SUM, data = merged_f, family = poisson)
+p2pss<-glm(HRQOL_5_1_2~ PSQI_5_sum * ETISexual_SUM, data = merged_f, family = poisson)
+p2psr<-glm(HRQOL_5_1_2~ ETISexual_SUM*race_cat, data = merged_f, family = poisson)
+tab_model(p2pse,p2psp,p2pss)
+tab_model(p2psr)
+
+library(dplyr)
+library(tidyr)
+merged_f <- merged_f %>%
+  mutate(ETISexual_SUM_Quartile = ntile(ETISexual_SUM, 4),ETIEmotional_SUM_Quartile = ntile(ETIEmotional_SUM, 4))
+
+aggregated_means_sq <- merged_f %>%
+  group_by(ETISexual_SUM_Quartile, race_cat) %>%
+  summarise(Mean_HRQOL_5_1 = mean(HRQOL_5_1, na.rm = TRUE)) %>%
+  ungroup() 
+
+ggplot(aggregated_means_sq, aes(x = factor(ETISexual_SUM_Quartile), y = Mean_HRQOL_5_1, fill = race_cat)) +
+  geom_bar(stat = "identity", position = position_dodge()) +
+  labs(x = "ETISexual_SUM Quartile", y = "Mean HRQOL 5_1", fill = "Race Category") +
+  theme_minimal() +
+  scale_fill_grey(start = 0.8, end = 0.2) +  # Use grayscale for fill
+  theme(text = element_text(color = "black"),  # Ensure text is black for readability
+        axis.text = element_text(color = "black"),
+        axis.title = element_text(color = "black"),
+        legend.title = element_text(color = "black"),
+        legend.text = element_text(color = "black"))
+
+aggregated_means_eq <- merged_f %>%
+  group_by(ETIEmotional_SUM_Quartile, race_cat) %>%
+  summarise(Mean_HRQOL_5_1 = mean(HRQOL_5_1, na.rm = TRUE)) %>%
+  ungroup() 
+
+#Mean Pain score by Race by emoSUM-----
+ggplot(aggregated_means_eq, aes(x = factor(ETIEmotional_SUM_Quartile), y = Mean_HRQOL_5_1, fill = race_cat)) +
+  geom_bar(stat = "identity", position = position_dodge()) +
+  labs(x = "ETIEmotional_SUM_Quartile", y = "Mean HRQOL 5_1", fill = "Race Category") +
+  theme_minimal() +
+  scale_fill_grey(start = 0.8, end = 0.2) +  # Use grayscale for fill
+  theme(text = element_text(color = "black"),  # Ensure text is black for readability
+        axis.text = element_text(color = "black"),
+        axis.title = element_text(color = "black"),
+        legend.title = element_text(color = "black"),
+        legend.text = element_text(color = "black"))
+
+tab_model(p1pe,p1pp,p1ps)
+tab_model(p1pss)
+tab_model(p1psr)
+
+table(merged_f$race_cat, merged_f$ETISexual_SUM)
+z1pe0<-zeroinfl(HRQOL_5_1~ ETIEmotional_SUM +PSQI_5_sum  | 1, data = merged_f, dist = "negbin")
+tab_model(z1pe0)
+tab_model(zinb2e)
+
+f1_preimp3<-merged_f%>%
+  select(PID,EOD10DAILY_SUM, EOD8UNFAIR_SUM,EOD9ITEM_SUM, IHS_M,BRCS_T,MSPSS_T, CESDR_T, GAD7, HRQOL_2_2_re, HRQOL_3_4_re,su_sum,stimulant,age_1,employ,identity,edu,marital1,income,race_cat,Child1,LOC_1a,HRQOL_1,HRQOL_4_4,HRQOL_5_1,HRQOL_6_1,HRQOL_7_1,HRQOL_8_1,HRQOL_9_1,HOPE_1,VL_1,VL_2,VL_3,VL_4,VL_5,VL_6,Born,MCHCI_10,MCHCI_10T,MCHCI_11,MCHCI_11T,MCHCI_12,MCHCI_12T,SU_2,SU_3,HRQOL_3_4_re_2,HRQOL_3_4_re_3,HRQOL_2_2_re_2,HRQOL_2_2_re_3,,GAD7_2,GAD7_3,CESDR_T_2,CESDR_T_3,stimulant_2,stimulant_3,su_sum_2,su_sum_3,SU_2_2,SU_2_3,SU_3_2,SU_3_3,MSPSS_T_2,MSPSS_T_3,MSPSS_S0,MSPSS_S0_2,MSPSS_S0_3,MSPSS_Fr,MSPSS_Fr_2,MSPSS_Fr_3,MSPSS_Fa,MSPSS_Fa_2,MSPSS_Fa_3,SN_1,SN_2,SN_3,SN_4,SN_5_1,SN_5_2,SN_5_3,SN_5_4,SN_5_5,SN_8,SN_9,SN_10,ETIEmotional_SUM,ETIPhysical_SUM,ETISexual_SUM,etihhd_sum,etigen_sum,HRQOL_5_1_2,HRQOL_5_1_3,HRQOL_5_1_4,PSQI_2,PSQI_4,PSQI_5,PSQI_6,PSQI_7,PSQI_8,PSQI_9,PSQI_10,PSQI_11,PSQI_12,PSQI_13,PSQI_5_sum,PSQI_5_sum_2,PSQI_5_sum_3,PSQI_5_sum_4)
+
+
+f1_preimp3$PID<-as.numeric(f1_preimp3$PID)
+library(missForest)
+# Specifying the variables to be treated as categorical
+# List of categorical variable names
+categorical_vars <- c("stimulant", 
+                      "stimulant_2", "stimulant_3", "su_sum_2", "su_sum_3", 
+                      "SU_2_2", "SU_2_3",  "SU_3_2", "SU_3_3", "SU_2",                           "SU_3", "SN_1", "SN_2", "SN_3", "SN_4", "SN_5_1", "SN_5_2", 
+                      "SN_5_3", "SN_5_4", "SN_5_5", "SN_8", "SN_9","HRQOL_3_4_re",
+                      "HRQOL_3_4_re_2", "HRQOL_3_4_re_3", "VL_1","VL_2","VL_3","VL_4","VL_5","VL_6","Born","Child1","MCHCI_10","MCHCI_10T","MCHCI_11","MCHCI_11T","MCHCI_12","MCHCI_12T","PSQI_2","PSQI_4","PSQI_5","PSQI_6","PSQI_7","PSQI_8","PSQI_9","PSQI_10","PSQI_11","PSQI_12","PSQI_13","HRQOL_5_1","HRQOL_5_1_2","HRQOL_5_1_3","HRQOL_5_1_4")
+
+# Converting specified variables to factors without imposing levels
+#Impute-RandomForest------------
+f1_preimp3[categorical_vars] <- lapply(f1_preimp3[categorical_vars], factor)
+library(missForest)
+#Imputation----- #Randomforest (MissForest) - single imputation but = Multiple imputation
+f1_preimp3$PID<-as.numeric(f1_preimp3$PID)
+imputed_f3 <- missForest(f1_preimp3, verbose = TRUE, ntree = 500, maxiter = 50, mtry = floor(sqrt(ncol(f1_preimp3))), replace = TRUE)
+imp_mf3 <- imputed_f3$ximp
+table(f$PSQI_7)
+summary(f1$PSQI_2T)
+
+#same uninterpretatble interaction
+in1<-glm(as.numeric(HRQOL_5_1)~PSQI_5_sum*ETIEmotional_SUM,data=imp_mf3,family=poisson)
+tab_model(in1)
+in2<-glm(as.numeric(HRQOL_5_1_2)~PSQI_5_sum*ETIPhysical_SUM,data=imp_mf3,family=poisson)
+tab_model(in2)
+
+# Load necessary packages
+library(pscl)
+library(MASS)
+library(sjPlot) # Assuming you're using sjPlot for tab_model
+
+# Model 1: Zero-Inflated Negative Binomial Regression with PSQI_5_sum and ETIEmotional_SUM interaction
+str(imp_mf3$HRQOL_5_1)
+table(imp_mf3$HRQOL_5_1)
+imp_mf3$HRQOL_5_1_n <- as.numeric(imp_mf3$HRQOL_5_1)
+str(imp_mf3$HRQOL_5_1_n)
+table(imp_mf3$HRQOL_5_1_n)
+
+sum(imp_mf3$HRQOL_5_1 == 0)  # Count of zeros in original data
+sum(imp_mf3$HRQOL_5_1_n == 0)  # Count of zeros in numeric converted data
+imp_mf3$HRQOL_5_1_n <- as.numeric(imp_mf3$HRQOL_5_1)
+table(imp_mf3$HRQOL_5_1_n)
+imp_mf3$HRQOL_5_1_n <- as.numeric(as.character(imp_mf3$HRQOL_5_1))
+imp_mf3$HRQOL_5_1_2_n <- as.numeric(as.character(imp_mf3$HRQOL_5_1_2))
+imp_mf3$HRQOL_5_1_3_n <- as.numeric(as.character(imp_mf3$HRQOL_5_1_3))
+imp_mf3$HRQOL_5_1_4_n <- as.numeric(as.character(imp_mf3$HRQOL_5_1_4))
+#make HRQOL_5_1 binary by >=14 
+imp_mf3$HRQOL_5_1b<-ifelse(imp_mf3$HRQOL_5_1_n>=14,1,0)
+imp_mf3$HRQOL_5_1_2b <- ifelse(imp_mf3$HRQOL_5_1_2_n>=14,1,0)
+imp_mf3$HRQOL_5_1_3b <- ifelse(imp_mf3$HRQOL_5_1_3_n>=14,1,0)
+
+be1<-glm(HRQOL_5_1b~ PSQI_5_sum * ETIEmotional_SUM, data = imp_mf3, family = binomial)
+be2<-glm(HRQOL_5_1_2b~ PSQI_5_sum * ETIEmotional_SUM, data = imp_mf3, family = binomial)
+be3<-glm(HRQOL_5_1_3b~ PSQI_5_sum * ETIEmotional_SUM, data = imp_mf3, family = binomial)
+tab_model(be1,be2,be3)
+bs1<-glm(HRQOL_5_1b~ PSQI_5_sum * ETISexual_SUM, data = imp_mf3, family = binomial)
+bs2<-glm(HRQOL_5_1_2b~ PSQI_5_sum * ETISexual_SUM, data = imp_mf3, family = binomial)
+bs3<-glm(HRQOL_5_1_3b~ PSQI_5_sum * ETISexual_SUM, data = imp_mf3, family = binomial)
+tab_model(bs1,bs2,bs3)
+bp1<-glm(HRQOL_5_1b~ PSQI_5_sum * ETIPhysical_SUM, data = imp_mf3, family = binomial)
+bp2<-glm(HRQOL_5_1_2b~ PSQI_5_sum * ETIPhysical_SUM, data = imp_mf3, family = binomial)
+bp3<-glm(HRQOL_5_1_3b~ PSQI_5_sum * ETIPhysical_SUM, data = imp_mf3, family = binomial)
+tab_model(bp1,bp2,bp3)
+
+zinb1e <- zeroinfl(HRQOL_5_1_n ~ PSQI_5_sum * ETIEmotional_SUM | 1, data = imp_mf3, dist = "negbin")
+zinb2e <- zeroinfl(HRQOL_5_1_2_n ~ PSQI_5_sum * ETIEmotional_SUM | 1, data = imp_mf3, dist = "negbin")
+tab_model(zinb1e,zinb2e)
+
+zinb1p <- zeroinfl(HRQOL_5_1_n ~ PSQI_5_sum * ETIPhysical_SUM | 1, data = imp_mf3, dist = "negbin")
+zinb2p <- zeroinfl(HRQOL_5_1_2_n ~ PSQI_5_sum * ETIPhysical_SUM | 1, data = imp_mf3, dist = "negbin")
+tab_model(zinb1p,zinb2p)
+
+zinb1s <- zeroinfl(HRQOL_5_1_n ~ PSQI_5_sum * ETISexual_SUM  | 1, data = imp_mf3, dist = "negbin")
+zinb2s <- zeroinfl(HRQOL_5_1_2_n ~ PSQI_5_sum * ETISexual_SUM  | 1, data = imp_mf3, dist = "negbin")
+tab_model(zinb1s,zinb2s)
+
+# Assuming scat is now a factor
+ggplot(imp_mf3, aes(x = PSQI_5_sum, y = HRQOL_5_1_2_n, color = scat)) +
+  geom_point() +
+  theme_minimal() +
+  labs(title = "Relationship between PSQI_5_sum and HRQOL_5_1_2_n by ETISexual_Sum Category",
+       x = "PSQI_5_sum",
+       y = "HRQOL_5_1_2_n",
+       color = "ETISexual_Sum Category") +
+  scale_color_brewer(palette = "Set1") +
+  geom_smooth(method = "lm", se = FALSE, aes(group = scat))
+
+
+summary(imp_mf3$ETISexual_SUM)
+
+ggplot(imp_mf3, aes(x = PSQI_5_sum, y = HRQOL_5_1_2_n, color = scat)) +
+  geom_point() +
+  theme_minimal() +
+  labs(title = "Relationship between PSQI_5_sum and HRQOL_5_1_2_n by ETISexual_Sum Category",
+       x = "PSQI_5_sum",
+       y = "HRQOL_5_1_2_n",
+       color = "ETISexual_Sum Category") +
+  scale_color_grey(start = 0.8, end = 0.2) +  # Use grayscale for coloring
+  geom_smooth(method = "lm", se = FALSE, aes(group = scat))
+
+
+mylist1<-list(PSQI_5_sum=12.5,ETISexual_SUM=3)
+mylist2<-list(PSQI_5_sum=12.5,ETISexual_SUM=1)
+mylist3<-list(PSQI_5_sum=12.5,ETISexual_SUM=0)
+mylist4<-list(PSQI_5_sum=9,ETISexual_SUM=3)
+mylist5<-list(PSQI_5_sum=4,ETISexual_SUM=3)
+mylist6<-list(PSQI_5_sum=1,ETISexual_SUM=3)
+mylist7<-list(PSQI_5_sum=9,ETISexual_SUM=0)
+mylist8<-list(PSQI_5_sum=4,ETISexual_SUM=0)
+mylist9<-list(PSQI_5_sum=1,ETISexual_SUM=0)
+emt_interaction <- emtrends(zinb2s, pairwise ~ PSQI_5_sum, var= "ETISexual_SUM")
+emps1<-emmeans(zinb2s, ~ PSQI_5_sum*ETISexual_SUM, at=mylist1)
+emps2<-emmeans(zinb2s, ~ PSQI_5_sum*ETISexual_SUM, at=mylist2)
+emps3<-emmeans(zinb2s, ~ PSQI_5_sum*ETISexual_SUM, at=mylist3)
+emps4<-emmeans(zinb2s, ~ PSQI_5_sum*ETISexual_SUM, at=mylist4)
+emps5<-emmeans(zinb2s, ~ PSQI_5_sum*ETISexual_SUM, at=mylist5)
+emps6<-emmeans(zinb2s, ~ PSQI_5_sum*ETISexual_SUM, at=mylist6)
+emps7<-emmeans(zinb2s, ~ PSQI_5_sum*ETISexual_SUM, at=mylist7)
+emps8<-emmeans(zinb2s, ~ PSQI_5_sum*ETISexual_SUM, at=mylist8)
+emps9<-emmeans(zinb2s, ~ PSQI_5_sum*ETISexual_SUM, at=mylist9)
+
+Psa<-mean(imp_mf3$PSQI_5_sum)+sd(imp_mf3$PSQI_5_sum)
+Ps<-mean(imp_mf3$PSQI_5_sum)
+Psb<-mean(imp_mf3$PSQI_5_sum)-sd(imp_mf3$PSQI_5_sum)
+mylist<-list(PSQI_5_sum=c(Psa,Ps,Psb))
+
+summary(imp_mf3$ETISexual_SUM)
+Esa<-mean(imp_mf3$ETISexual_SUM)+sd(imp_mf3$ETISexual_SUM)
+Es<-mean(imp_mf3$ETISexual_SUM)
+Esb<-mean(imp_mf3$ETISexual_SUM)-sd(imp_mf3$ETISexual_SUM)
+
+mylist2<-list(PSQI_5_sum=c(Esa,Es,Esb))
+emtps2<-emtrends(zinb2s~ETISexual_SUM,var="PSQI_5_sum", at=mylist)
+mylist <- list(PSQI_5_sum=c(Psa,Ps,Psb),ETISexual_SUM=c(Esa,Es,Esb))
+emmip(zinb2s,PSQI_5_sum~ETISexual_SUM,at=mylist, CIs=TRUE)
+
+library(tidyLPA)
+lpa_eti_data <- imp_mf3 %>%
+  select(ETIPhysical_SUM, ETIEmotional_SUM, ETISexual_SUM, etihhd_sum, etigen_sum)
+set.seed(123)
+lpa_eti_results<- lpa_eti_data %>%
+  estimate_profiles(1:6)
+print(lpa_eti_results)
+
+compare_solutions(lpa_eti_results, statistics= c("AIC","BIC","CAIC","CLC","SABIC"))
+
+#LPA#1 Plot---------
+lpa_eti_data %>%
+  estimate_profiles(3)%>%
+  plot_profiles()
+#LPA#1 Elbow Plot---------
+plot(lpa_eti_results, plot = "profile")
+###Takeaway#5-SexACE for Class 3>Class2 otherwise dose-gradient consistent = better label? Problem solved: Linearity and multi-ACE issue + household Func + Severe Gen ACE! but retained issue with dose-gradient with SexACE X Pain (medium>high) ######
+
+print(lpa_eti_results)
+lpa3_eti_est<-get_estimates(lpa_eti_results[[3]])
+lpa_eti_results3<-get_data(lpa_eti_results[[3]])
+PID<-merged_f$PID
+lpa_eti_results3$PID<-as.factor(as.character(PID))
+lpa_eti_results3_PID<-lpa_eti_results3%>%select(PID,CPROB1,CPROB2,CPROB3,Class)
+lpa_eti_results3_PID$Class <- factor(lpa_eti_results3_PID$Class)
+# Relabel the levels of the Class variable
+lpa_eti_results3_PID$Class <- factor(lpa_eti_results3_PID$Class,
+levels = c("1", "2", "3"),  # Original levels
+labels = c("LowACE", "MediumMultiACE", "HighMultiACEx")) 
+imp_mf3$PID<-as.factor(as.character(imp_mf3$PID))
+imp_mf3_lpa<- imp_mf3 %>%
+  left_join(lpa_eti_results3_PID, by = "PID")
+
+#change ref level for class
+imp_mf3_lpa$Class <- relevel(imp_mf3_lpa$Class, ref = "LowACE")
+imp_mf3_lpa$HRQOL_5_1 <- as.integer(as.character(imp_mf3_lpa$HRQOL_5_1))
+imp_mf3_lpa$HRQOL_5_1_2 <- as.integer(as.character(imp_mf3_lpa$HRQOL_5_1_2))
+imp_mf3_lpa$HRQOL_5_1_3 <- as.integer(as.character(imp_mf3_lpa$HRQOL_5_1_3))
+#recode HRQOL_5_1 as binary by >14 
+imp_mf3_lpa$HRQOL_5_1b<-ifelse(imp_mf3_lpa$HRQOL_5_1>=14,1,0)
+imp_mf3_lpa$HRQOL_5_1_2b <- ifelse(imp_mf3_lpa$HRQOL_5_1_2>=14,1,0)
+imp_mf3_lpa$HRQOL_5_1_3b <- ifelse(imp_mf3_lpa$HRQOL_5_1_3>=14,1,0)
+table(imp_mf3_lpa$HRQOL_5_1b)
+table(imp_mf3_lpa$HRQOL_5_1_2b)
+table(imp_mf3_lpa$HRQOL_5_1_3b) 
+
+#PS#1:Total effect-------
+#Look at the DAG
+library(PSweight)
+#Total effect from Class: Age, Born in the US, Education, Experienced discrimination, Partnered, Race (U.S. system defined)
+ps1_aps<-as.formula("Class~ 1 + age_1+ Born + edu + marital1+EOD8UNFAIR_SUM +race_cat") 
+ps1_aps_ow <- SumStat(ps1_aps, method = "glm", weight="overlap", delta=0,data =imp_mf3_lpa)
+ps1_aps_ow.smd<-summary(ps1_aps_ow  , weighted.var = TRUE, metric = "ASD")
+plot(ps1_aps_ow,type="density")
+ps1_aps_ow.w<- ps1_aps_ow$ps.weights$overlap
+summary(ps1_aps_ow.w)
+
+#non-linear trend for pain count----------------
+# Logistic regression with a polynomial term (squared)
+model_poly <- glm(HRQOL_5_1b ~ PSQI_5_sum + I(PSQI_5_sum^2), data = imp_mf3_lpa, family = "binomial")
+# Summary of the model to check significance of terms
+summary(model_poly)
+# install.packages("splines")
+library(splines)
+# Logistic regression with spline terms for the continuous variable
+model_spline<-glm(HRQOL_5_1b ~ PSQI_5_sum + ns(PSQI_5_sum,df=3), data = imp_mf3_lpa, family = "binomial")
+summary(model_spline)
+model_linear<-glm(HRQOL_5_1b ~ PSQI_5_sum, data = imp_mf3_lpa, family = "binomial")
+anova(model_linear, model_poly, test = "Chisq")
+# Comparing the linear model with the spline model
+anova(model_linear, model_spline, test = "Chisq") 
+
+#As#1: binary transform of PSQI_5_sum-------------
+summary(imp_mf3_lpa$PSQI_5_sum)
+hist(imp_mf3_lpa$PSQI_5_sum)
+imp_mf3_lpa$PSQI_5_sumb<-ifelse(imp_mf3_lpa$PSQI_5_sum>=7,1,0)
+#PS#2Total effect from sleep:Experienced discrimination, Multi-ACE, mental health-baseline------------
+ps2_aps<-as.formula("PSQI_5_sumb~ 1 +EOD8UNFAIR_SUM + GAD7 + Class") 
+ps2_aps_ow <- SumStat(ps2_aps, method = "glm", weight="overlap", delta=0,data =imp_mf3_lpa)
+ps2_aps_ow.smd<-summary(ps2_aps_ow , weighted.var = TRUE, metric = "ASD")
+plot(ps2_aps_ow,type="density")
+ps2_aps_ow.w<- ps2_aps_ow$ps.weights$overlap
+summary(ps2_aps_ow.w)
+#adjust for lPA classification uncertainty
+posterior_matrix_aps <- data.frame(
+  CPROB1 = imp_mf3_lpa$CPROB1,
+  CPROB2 = imp_mf3_lpa$CPROB2,
+  CPROB3 = imp_mf3_lpa$CPROB3
+)
+
+
+
+# Assuming ps1_aps_ow.w and ps2_aps_ow.w are the PS weights for two different models
+# and posterior_matrix_aps contains the posterior probabilities from LPA
+
+# First, check if the lengths of the PS weights match the number of rows in the posterior probabilities matrix
+if (length(ps1_aps_ow.w) == nrow(posterior_matrix_aps) && length(ps2_aps_ow.w) == nrow(posterior_matrix_aps)) {
+  
+  # Calculate the average of the two sets of PS weights for each observation
+  # This is one way to combine the weights; alternatives could involve more complex functions of the two weights
+  combined_ps_weights <- (ps1_aps_ow.w + ps2_aps_ow.w) / 2
+  
+  # Create a weight matrix with the same dimensions as posterior_matrix_aps, using the combined PS weights
+  weight_matrix <- matrix(rep(combined_ps_weights, each = ncol(posterior_matrix_aps)), nrow = nrow(posterior_matrix_aps), byrow = TRUE)
+  
+  # Element-wise multiplication to adjust posterior probabilities by the combined weights
+  adjusted_posterior_matrix <- weight_matrix * posterior_matrix_aps
+  
+  # If you need to sum across rows or perform any further aggregation, you can do so here
+  # For example, if you want the adjusted weight for each observation (row)
+  adjusted_weights_ow <- rowSums(adjusted_posterior_matrix)
+  
+} else {
+  stop("The lengths of PS weights do not match the number of rows in posterior_matrix_aps.")
+}
+
+summary(adjusted_weights_ow)
+
+#Weight overlap---------------
+ggplot(data =imp_mf3_lpa, aes(x = as.factor(Class), y = adjusted_weights_ow)) +
+  geom_boxplot(fill = "grey", color = "black") +  # Using grey fill and black border for greyscale effect
+  labs(title = "Overlap Weights by LPA ACE", x = "Latent Profile", y = "Overlap Weights")
+ggplot(data = imp_mf3_lpa, aes(x = adjusted_weights_ow, fill = Class)) +
+  geom_density(alpha = 0.5) +
+  labs(title = "Density Plot of Overlap Weights by LPA-ACE", x = "Overlap Weights", y = "Density") +
+  scale_fill_grey()  # Set fill colors to shades of grey
+
+imp_mf3_lpa$ow<-adjusted_weights_ow
+#no trimming needed
+imp_mf3_lpa$HRQOL_5_1b<-as.integer(as.character(imp_mf3_lpa$HRQOL_5_1b))
+imp_mf3_lpa$HRQOL_5_1_2b<-as.integer(as.character(imp_mf3_lpa$HRQOL_5_1_2b))
+imp_mf3_lpa$HRQOL_5_1_3b<-as.integer(as.character(imp_mf3_lpa$HRQOL_5_1_3b)
+                                     
+                                     
+#Mod#2-GEE Int Sleep------------------
+library(geepack)
+ppsgee1i<-geeglm(HRQOL_5_1b ~ Class*PSQI_5_sumb, id = LOC_1a, data = imp_mf3_lpa, family = "poisson", corstr = "exchangeable", weights = ow)
+ppsgee2i<-geeglm(HRQOL_5_1_2b ~ Class*PSQI_5_sumb, id = LOC_1a, data = imp_mf3_lpa, family = "poisson", corstr = "exchangeable",weights=ow)
+tab_model(ppsgee1i,ppsgee2i)
+
+
+
+ppsgee1in<-geeglm(HRQOL_5_1b ~ Class*PSQI_5_sumb + age_1+ Born + edu + marital1+EOD8UNFAIR_SUM +race_cat +GAD7, id = LOC_1a, data = imp_mf3_lpa, family = "poisson", corstr = "exchangeable")
+
+ppsgee2in<-geeglm(HRQOL_5_1_2b ~ Class*PSQI_5_sumb + age_1+ Born + edu + marital1+EOD8UNFAIR_SUM +race_cat, id = LOC_1a, data = imp_mf3_lpa, family = "poisson", corstr = "exchangeable")
+
+tab_model(ppsgee1in,ppsgee2in)
+
+###Takeway#6: it worked! but we might want to change the 14 day cutoff if you want to use T3 
+ppsgee2a<-geeglm(HRQOL_5_1_2b ~ Class, id = LOC_1a, data = imp_mf3_lpa, family = "poisson", corstr = "exchangeable",weights=ow)
+
+ppsgee2b<-geeglm(HRQOL_5_1_2b ~ Class+PSQI_5_sumb, id = LOC_1a, data = imp_mf3_lpa, family = "poisson", corstr = "exchangeable",weights=ow)
+tab_model(ppsgee2a,ppsgee2b)
+
+anova(ppsgee2b,ppsgee2) #X2:12.647 p=0.001794
+
+prgee1<-geeglm(HRQOL_5_1b ~ Class*race_cat, id = LOC_1a, data = imp_mf3_lpa, family = "poisson", corstr = "exchangeable",weights=ow)
+tab_model(prgee1)
+
+prgee2<-geeglm(HRQOL_5_1_2b ~ Class*race_cat, id = LOC_1a, data = imp_mf3_lpa, family = "poisson", corstr = "exchangeable",weights=ow)
+tab_model(prgee1,prgee2)
+
+imp_mf3$income_num<-as.numeric(as.factor(imp_mf3$income))
+lpa_etif_data <- imp_mf3%>%
+  select(ETIPhysical_SUM, ETIEmotional_SUM, ETISexual_SUM, etihhd_sum, etigen_sum, income_num, IHS_M)
+lpa_etif_results<- lpa_etif_data %>%
+  estimate_profiles(1:6)
+print(lpa_etif_results)
+print(lpa_eti_results)
+#LPA#2 Plot---------
+lpa_etif_data %>%
+  estimate_profiles(3)%>%
+  plot_profiles()
+#LPA#2 Elbow Plot---------
+plot(lpa_etif_results, plot = "profile")
+###Takeaway#X-SexACE for Class 3>Class2 otherwise dose-gradient consistent = better label? Problem solved: Linearity and multi-ACE issue + household Func + Severe Gen ACE! but retained issue with dose-gradient with SexACE X Pain (medium>high) ######
+lpa3_etif_est<-get_estimates(lpa_etif_results[[3]])
+lpa_etif_results3<-get_data(lpa_etif_results[[3]])
+PID<-merged_f$PID
+lpa_etif_results3$PID<-as.factor(as.character(PID))
+lpa_etif_results3_PID<-lpa_etif_results3%>%select(PID,CPROB1,CPROB2,CPROB3,Class)
+lpa_etif_results3_PID$Class <- factor(lpa_etif_results3_PID$Class)
+# Relabel the levels of the Class variable
+lpa_etif_results3_PID$Class <- factor(lpa_etif_results3_PID$Class,
+levels = c("1", "2", "3"),  # Original levels
+labels = c("LowACE", "MediumMultiACE", "HighMultiACEx")) 
+imp_mf3$PID<-as.factor(as.character(imp_mf3$PID))
+imp_mf3_lpaf<- imp_mf3 %>%
+  left_join(lpa_etif_results3_PID, by = "PID")
+
+#change ref level for class
+imp_mf3_lpaf$Class <- relevel(imp_mf3_lpaf$Class, ref = "LowACE")
+#interaction
+imp_mf3_lpaf$HRQOL_5_1 <- as.integer(as.character(imp_mf3_lpaf$HRQOL_5_1))
+imp_mf3_lpaf$HRQOL_5_1_2 <- as.integer(as.character(imp_mf3_lpaf$HRQOL_5_1_2))
+imp_mf3_lpaf$HRQOL_5_1_3 <- as.integer(as.character(imp_mf3_lpaf$HRQOL_5_1_3))
+#recode HRQOL_5_1 as binary by >14 
+imp_mf3_lpaf$HRQOL_5_1b<-ifelse(imp_mf3_lpaf$HRQOL_5_1>=14,1,0)
+imp_mf3_lpaf$HRQOL_5_1_2b <- ifelse(imp_mf3_lpaf$HRQOL_5_1_2>=14,1,0)
+imp_mf3_lpaf$HRQOL_5_1_3b <- ifelse(imp_mf3_lpaf$HRQOL_5_1_3>=14,1,0)
+table(imp_mf3_lpaf$HRQOL_5_1b)
+table(imp_mf3_lpaf$HRQOL_5_1_2b)
+table(imp_mf3_lpaf$HRQOL_5_1_3b) 
+
+CrossTable(imp_mf3_lpaf$Class)
+#PS#1-LPA#2:Total effect-------
+#Look at the DAG
+library(PSweight)
+#Total effect from Class: Age, Born in the US, Education, Experienced discrimination, Partnered, Race (U.S. system defined)
+ps1_apsf<-as.formula("Class~ 1 + age_1+ Born + edu + marital1+EOD8UNFAIR_SUM +race_cat") 
+ps1_apsf_ow <- SumStat(ps1_apsf, method = "glm", weight="overlap", delta=0,data =imp_mf3_lpaf)
+ps1_apsf_ow.smd<-summary(ps1_apsf_ow  , weighted.var = TRUE, metric = "ASD")
+plot(ps1_apsf_ow,type="density")
+ps1_apsf_ow.w<- ps1_apsf_ow$ps.weights$overlap
+summary(ps1_apsf_ow.w)
+
+#As#1: binary transform of PSQI_5_sum-------------
+summary(imp_mf3_lpaf$PSQI_5_sum)
+hist(imp_mf3_lpaf$PSQI_5_sum)
+imp_mf3_lpaf$PSQI_5_sumb<-ifelse(imp_mf3_lpaf$PSQI_5_sum>=7,1,0)
+#PS#2LPA#2----------
+##Total effect from sleep:Experienced discrimination, Multi-ACE, mental health-baseline
+ps2_apsf<-as.formula("PSQI_5_sumb~ 1 +EOD8UNFAIR_SUM + GAD7 + Class") 
+ps2_apsf_ow <- SumStat(ps2_apsf, method = "glm", weight="overlap", delta=0,data =imp_mf3_lpaf)
+ps2_apsf_ow.smd<-summary(ps2_apsf_ow , weighted.var = TRUE, metric = "ASD")
+plot(ps2_apsf_ow,type="density")
+ps2_apsf_ow.w<- ps2_apsf_ow$ps.weights$overlap
+summary(ps2_apsf_ow.w)
+#adjust for lPA classification uncertainty
+posterior_matrix_apsf <- data.frame(
+  CPROB1 = imp_mf3_lpaf$CPROB1,
+  CPROB2 = imp_mf3_lpaf$CPROB2,
+  CPROB3 = imp_mf3_lpaf$CPROB3
+)
+# Assuming ps1_aps_ow.w and ps2_aps_ow.w are the PS weights for two different models
+# and posterior_matrix_aps contains the posterior probabilities from LPA
+
+# First, check if the lengths of the PS weights match the number of rows in the posterior probabilities matrix
+if (length(ps1_apsf_ow.w) == nrow(posterior_matrix_apsf) && length(ps2_apsf_ow.w) == nrow(posterior_matrix_apsf)) {
+  
+  # Calculate the average of the two sets of PS weights for each observation
+  # This is one way to combine the weights; alternatives could involve more complex functions of the two weights
+  combined_psf_weights <- (ps1_apsf_ow.w + ps2_apsf_ow.w) / 2
+  
+  # Create a weight matrix with the same dimensions as posterior_matrix_aps, using the combined PS weights
+  weight_matrixf <- matrix(rep(combined_psf_weights, each = ncol(posterior_matrix_apsf)), nrow = nrow(posterior_matrix_apsf), byrow = TRUE)
+  
+  # Element-wise multiplication to adjust posterior probabilities by the combined weights
+  adjusted_posterior_matrixf <- weight_matrixf * posterior_matrix_apsf
+  
+  # If you need to sum across rows or perform any further aggregation, you can do so here
+  # For example, if you want the adjusted weight for each observation (row)
+  adjusted_weightsf_ow <- rowSums(adjusted_posterior_matrixf)
+  
+} else {
+  stop("The lengths of PS weights do not match the number of rows in posterior_matrix_aps.")
+}
+
+summary(adjusted_weightsf_ow)
+
+ggplot(data =imp_mf3_lpaf, aes(x = as.factor(Class), y = adjusted_weightsf_ow)) +
+  geom_boxplot(fill = "grey", color = "black") +  # Using grey fill and black border for greyscale effect
+  labs(title = "Overlap Weights by LPA ACE", x = "Latent Profile", y = "Overlap Weights")
+ggplot(data = imp_mf3_lpaf, aes(x = adjusted_weightsf_ow, fill = Class)) +
+  geom_density(alpha = 0.5) +
+  labs(title = "Density Plot of Overlap Weights by LPA-ACE", x = "Overlap Weights", y = "Density") +
+  scale_fill_grey()  # Set fill colors to shades of grey
+
+imp_mf3_lpaf$ow<-adjusted_weightsf_ow
+imp_mf3_lpaf$HRQOL_5_1b<-as.integer(as.character(imp_mf3_lpaf$HRQOL_5_1b))
+imp_mf3_lpaf$HRQOL_5_1_2b<-as.integer(as.character(imp_mf3_lpaf$HRQOL_5_1_2b))
+imp_mf3_lpaf$HRQOL_5_1_3b<-as.integer(as.character(imp_mf3_lpaf$HRQOL_5_1_3b))
+ppsgee1fi<-geeglm(HRQOL_5_1b ~ Class*PSQI_5_sumb, id = LOC_1a, data = imp_mf3_lpaf, family = "poisson", corstr = "exchangeable", weights = ow)
+ppsgee2fi<-geeglm(HRQOL_5_1_2b ~ Class*PSQI_5_sumb, id = LOC_1a, data = imp_mf3_lpaf, family = "poisson", corstr = "exchangeable",weights=ow)
+tab_model(ppsgee1fi,ppsgee2fi) #because its >14days cutoff 
+
+ppsgee1f<-geeglm(HRQOL_5_1b ~ Class, id = LOC_1a, data = imp_mf3_lpaf, family = "poisson", corstr = "exchangeable", weights = ow)
+ppsgee2f<-geeglm(HRQOL_5_1_2b ~ Class + PSQI_5_sumb, id = LOC_1a, data = imp_mf3_lpaf, family = "poisson", corstr = "exchangeable",weights=ow)
+tab_model(ppsgee1f,ppsgee2f) #because its >14days cutoff 
+
+ppsgee2f<-geeglm(HRQOL_5_1_2b ~ Class*PSQI_5_sumb, id = LOC_1a, data = imp_mf3_lpaf, family = "poisson", corstr = "exchangeable",weights=ow)
+tab_model(ppsgee1fi,ppsgee2fi) #because its >14days cutoff 
+
+anova(ppsgee2f,ppsgee2fi)
+
+ppsgee2fr<-geeglm(HRQOL_5_1_2b ~ Class*race_cat, id = LOC_1a, data = imp_mf3_lpaf, family = "poisson", corstr = "exchangeable",weights=ow)
+ppsgee2fr0<-geeglm(HRQOL_5_1_2b ~ Class + race_cat, id = LOC_1a, data = imp_mf3_lpaf, family = "poisson", corstr = "exchangeable",weights=ow)
+
+tab_model(ppsgee2fr, ppsgee2fr0)
+anova(ppsgee2fr,ppsgee2fr0)
+
+#Amean#2 ByClass*Race----------------
+imp_mf3_lpaf$HRQOL_5_1 <- as.numeric(as.character(imp_mf3_lpa$HRQOL_5_1))
+am_pr1 <- imp_mf3_lpaf %>%
+  group_by(Class, race_cat) %>%
+  summarise(aggregated_mean_HRQOL_5_1 = mean(HRQOL_5_1, na.rm = TRUE),
+            .groups = 'drop')  
+print(am_pr1)
+
+imp_mf3_lpaf$HRQOL_5_1_2 <- as.numeric(as.character(imp_mf3_lpa$HRQOL_5_1_2))
+am_pr2 <- imp_mf3_lpaf %>%
+  group_by(Class, race_cat) %>%
+  summarise(aggregated_mean_HRQOL_5_1_2 = mean(HRQOL_5_1_2, na.rm = TRUE),
+            .groups = 'drop')  # This option drops the grouping structure afterwards
+
+print(am_pr2)
+#On average black with high MultiACE had 7.82 days of pain in the past 30days 
+
+####Takeaway#6:MediumACE-White-veryhighPain-----
+lpa_eti_data %>%
+  estimate_profiles(3)%>%
+  plot_profiles()
+library(gmodels)
+#medium ACE had most low income White
+table(imp_mf3_lpa$income,imp_mf3_lpa$race_cat,imp_mf3_lpa$Class)
+
+
+if (!requireNamespace("dplyr", quietly = TRUE)) install.packages("dplyr")
+if (!requireNamespace("boot", quietly = TRUE)) install.packages("boot")
+library(dplyr)
+library(boot)
+library(tidyr)
+
+# Example of defining expected combinations (adjust based on your actual data)
+calculate_means <- function(data, indices) {
+  data_sample <- data[indices, ]
+  aggregated_means <- data_sample %>%
+    group_by(Class, race_cat) %>%
+    summarise(aggregated_mean_HRQOL_5_1 = mean(HRQOL_5_1, na.rm = TRUE),
+              .groups = 'drop') %>%
+    mutate(combination = paste(Class, race_cat, sep = "_")) %>%
+    arrange(combination) %>%
+    select(combination, aggregated_mean_HRQOL_5_1)
+  
+  # Ensure all expected combinations are represented
+  expected_combinations <- unique(data_sample$combination)
+  missing_combinations <- setdiff(expected_combinations, aggregated_means$combination)
+  if(length(missing_combinations) > 0) {
+    missing_data <- data.frame(combination = missing_combinations,
+                               aggregated_mean_HRQOL_5_1 = NA)
+    aggregated_means <- rbind(aggregated_means, missing_data)
+  }
+  
+  return(aggregated_means$aggregated_mean_HRQOL_5_1)
+}
+library(boot)
+boot_results <- boot(data = imp_mf3_lpa, statistic = calculate_means, R = 1000)
+# Example for calculating CI for the first combination
+boot_ci_first_combination <- boot.ci(boot.out = boot_results, type = "bca", index = 1)
+print(boot_ci_first_combination)
+
+# You would repeat the process for each combination, adjusting the 'index' parameter
+ci_results <- lapply(1:length(expected_combinations), function(i) {
+  boot.ci(boot.out = boot_results, type = "bca", index = i)
+})
+
+# Example dataset
+# df <- data.frame(group1 = ..., group2 = ..., outcome = ...)
+
+# Group by combinations and perform bootstrapping for each
+results <- df %>%
+  group_by(group1, group2) %>%
+  do({
+    # Perform bootstrapping
+    res <- boot(data = ., statistic = bootstrap_mean, R = 1000, varname = "outcome")
+    
+    # Calculate 95% CI
+    ci <- boot.ci(res, type = "perc")$percent[4:5]
+    
+    # Return a data frame with mean and CI for each group
+    data.frame(
+      mean = mean($.outcome, na.rm = TRUE),
+      lowerCI = ci[1],
+      upperCI = ci[2]
+    )
+  }) %>%
+  ungroup() %>%
+  mutate(group1 = factor(group1), group2 = factor(group2))  # Ensure groups are factors if not already
+
+# View the results
+print(results)
+
+# Define all expected combinations globally (example)
+all_combinations <- expand.grid(Class = unique(imp_mf3_lpaf$Class), race_cat = unique(imp_mf3_lpaf$race_cat))
+all_combinations$combination <- paste(all_combinations$Class, all_combinations$race_cat, sep = "_")
+
+calculate_means <- function(data, indices) {
+  data_sample <- data[indices, ]
+  aggregated_means <- data_sample %>%
+    group_by(Class, race_cat) %>%
+    summarise(aggregated_mean_HRQOL_5_1 = mean(HRQOL_5_1, na.rm = TRUE), .groups = 'drop') %>%
+    mutate(combination = paste(Class, race_cat, sep = "_")) %>%
+    select(combination, aggregated_mean_HRQOL_5_1)
+  
+# Merge to ensure all combinations are present
+  aggregated_means <- merge(all_combinations, aggregated_means, by = "combination", all.x = TRUE)
+  
+return(aggregated_means$aggregated_mean_HRQOL_5_1)
+}
+
+# Assuming imp_mf3_lpa is your data frame
+boot_results <- boot(data = imp_mf3_lpaf, statistic = calculate_means, R = 1000)
+
+#DAG1---------- 
+dag {
+  bb="0,0,1,1"
+  "Born in the US" [pos="0.677,0.076"]
+  "Employment status" [pos="0.289,0.474"]
+  "Experienced discrimination" [pos="0.320,0.298"]
+  "Multi-ACE" [exposure,pos="0.589,0.432"]
+  "Past 30-day pain-baseline" [outcome,pos="0.754,0.748"]
+  "Past-30-day-pain-follow-up" [pos="0.640,0.886"]
+  "Race (U.S. system defined)" [pos="0.246,0.127"]
+  "Race (by heritage)" [latent,pos="0.449,0.046"]
+  "Risk for psychopathology" [latent,pos="0.326,0.722"]
+  "Sleep-baseline" [pos="0.541,0.744"]
+  "Sleep-follow-up" [pos="0.369,0.810"]
+  "Social network" [pos="0.755,0.452"]
+  "Social support" [pos="0.906,0.490"]
+  "mental health-baseline" [pos="0.826,0.627"]
+  Age [pos="0.055,0.360"]
+  Child [pos="0.776,0.304"]
+  Education [pos="0.116,0.488"]
+  Homophobia [pos="0.515,0.569"]
+  Income [pos="0.357,0.591"]
+  LTFU [pos="0.181,0.715"]
+  Partnered [pos="0.596,0.272"]
+  "Born in the US" -> "Employment status"
+  "Born in the US" -> "Multi-ACE"
+  "Born in the US" -> "Race (U.S. system defined)"
+  "Born in the US" -> Child
+  "Born in the US" -> Education
+  "Born in the US" -> Partnered
+  "Employment status" -> "Risk for psychopathology"
+  "Employment status" -> "Sleep-baseline"
+  "Employment status" -> "Social network"
+  "Employment status" -> Income
+  "Employment status" -> LTFU
+  "Experienced discrimination" -> "Employment status"
+  "Experienced discrimination" -> "Multi-ACE"
+  "Experienced discrimination" -> "Past 30-day pain-baseline"
+  "Experienced discrimination" -> "Risk for psychopathology"
+  "Experienced discrimination" -> "Sleep-baseline"
+  "Experienced discrimination" -> "mental health-baseline"
+  "Experienced discrimination" -> Education
+  "Experienced discrimination" -> Homophobia
+  "Experienced discrimination" -> Income
+  "Experienced discrimination" -> Partnered
+  "Multi-ACE" -> "Employment status"
+  "Multi-ACE" -> "Past 30-day pain-baseline"
+  "Multi-ACE" -> "Risk for psychopathology"
+  "Multi-ACE" -> "Sleep-baseline"
+  "Multi-ACE" -> "Social network"
+  "Multi-ACE" -> "mental health-baseline"
+  "Multi-ACE" -> Homophobia
+  "Multi-ACE" -> Income
+  "Multi-ACE" <-> Education
+  "Past 30-day pain-baseline" -> "Past-30-day-pain-follow-up"
+  "Race (U.S. system defined)" -> "Employment status"
+  "Race (U.S. system defined)" -> "Experienced discrimination"
+  "Race (U.S. system defined)" -> "Multi-ACE"
+  "Race (U.S. system defined)" -> Education
+  "Race (U.S. system defined)" -> Income
+  "Race (U.S. system defined)" -> LTFU
+  "Race (by heritage)" -> "Born in the US"
+  "Race (by heritage)" -> "Race (U.S. system defined)"
+  "Risk for psychopathology" -> "mental health-baseline"
+  "Sleep-baseline" -> "Past 30-day pain-baseline"
+  "Sleep-baseline" -> "Past-30-day-pain-follow-up"
+  "Sleep-baseline" -> "Sleep-follow-up"
+  "Sleep-follow-up" -> "Past-30-day-pain-follow-up"
+  "Social network" -> "Social support"
+  "Social support" -> "mental health-baseline"
+  "mental health-baseline" -> "Past 30-day pain-baseline"
+  "mental health-baseline" -> "Sleep-baseline"
+  Age -> "Employment status"
+  Age -> "Multi-ACE"
+  Age -> "Risk for psychopathology"
+  Age -> Income
+  Child -> "Employment status"
+  Child -> "Social network"
+  Education -> "Risk for psychopathology"
+  Education -> "Social network"
+  Education -> Child
+  Education -> Homophobia
+  Education -> Income
+  Education -> LTFU
+  Education -> Partnered
+  Homophobia -> "mental health-baseline"
+  Income -> "Sleep-baseline"
+  Partnered -> "Employment status"
+  Partnered -> "Multi-ACE"
+  Partnered -> "Social network"
+  Partnered -> Child
+}
+
